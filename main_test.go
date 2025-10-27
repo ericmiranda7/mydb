@@ -24,10 +24,9 @@ func TestSet(t *testing.T) {
 func TestGetSuccess(t *testing.T) {
 	key := "foo"
 	exp := "24"
-	dbfile := bytes.Buffer{}
-	dbfile.WriteString("foo,24\nbar,knob\n")
+	dbfile := bytes.NewReader([]byte("foo,24\nbar,knob\n"))
 
-	res, _ := Get(&dbfile, key)
+	res, _ := Get(dbfile, key)
 
 	if strings.Compare(res, exp) != 0 {
 		t.Fatalf("got %v want %v", res, exp)
@@ -36,10 +35,9 @@ func TestGetSuccess(t *testing.T) {
 
 func TestGetFail(t *testing.T) {
 	key := "baz"
-	dbfile := bytes.Buffer{}
-	dbfile.WriteString("foo,24\nbar,knob\n")
+	dbfile := bytes.NewReader([]byte("foo,24\nbar,knob\n"))
 
-	_, err := Get(&dbfile, key)
+	_, err := Get(dbfile, key)
 
 	if err == nil {
 		log.Fatalln("expected error!")
