@@ -18,11 +18,7 @@ func main() {
 		log.Fatalln(err)
 	}
 	// todo(): populate index from file
-	dbstat, err := dbfile.Stat()
 	indx := map[string]int64{}
-	if err != nil {
-		log.Fatalln(err)
-	}
 
 	switch cmd {
 	case "set":
@@ -30,11 +26,14 @@ func main() {
 			key := os.Args[2]
 			val := os.Args[3]
 			wrote := Set(dbfile, key, val)
-			indx[key] = dbstat.Size() - wrote - 1
+			dbStat, err := dbfile.Stat()
+			if err != nil {
+				log.Fatalln(err)
+			}
+			indx[key] = dbStat.Size() - wrote - 1
 		}
 	case "get":
 		{
-			// get
 			key := os.Args[2]
 			val, err := Get(dbfile, key, indx[key])
 			if err != nil {
@@ -44,7 +43,6 @@ func main() {
 		}
 	case "http":
 		{
-			// run in server mode
 			http.HandleFunc("/get/", GetHandler(dbfile))
 
 			middlewared := LoggingMiddleware(http.DefaultServeMux)
@@ -68,7 +66,7 @@ func GetHandler(dbfile io.ReadSeeker) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		key, _ := strings.CutPrefix(req.URL.String(), "/get/")
 
-		// todo()
+		// todo(proper offset)
 		val, err := Get(dbfile, key, 0)
 		if err != nil {
 			log.Fatalln(err)

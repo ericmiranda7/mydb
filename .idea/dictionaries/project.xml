@@ -2,6 +2,8 @@
   <dictionary name="project">
     <words>
       <w>dbfile</w>
+      <w>indx</w>
+      <w>middlewared</w>
     </words>
   </dictionary>
 </component>
