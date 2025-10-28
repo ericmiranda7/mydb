@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"strings"
 	"testing"
 )
@@ -26,21 +25,25 @@ func TestGetSuccess(t *testing.T) {
 	exp := "24"
 	dbfile := bytes.NewReader([]byte("foo,24\nbar,knob\n"))
 
-	res, _ := Get(dbfile, key)
+	res, _ := Get(dbfile, key, 0)
 
 	if strings.Compare(res, exp) != 0 {
 		t.Fatalf("got %v want %v", res, exp)
 	}
 }
 
-func TestGetFail(t *testing.T) {
-	key := "baz"
-	dbfile := bytes.NewReader([]byte("foo,24\nbar,knob\n"))
+func TestGetLatestIntegration(t *testing.T) {
+	key := "foo"
+	exp := "42"
+	buf := bytes.Buffer{}
+	_ = Set(&buf, key, "24")
+	_ = Set(&buf, key, exp)
 
-	_, err := Get(dbfile, key)
+	rdr := bytes.NewReader(buf.Bytes())
+	res, _ := Get(rdr, key, 7)
 
-	if err == nil {
-		log.Fatalln("expected error!")
+	if strings.Compare(res, exp) != 0 {
+		t.Fatalf("got %v want %v", res, exp)
 	}
 }
 

@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -18,19 +17,26 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
+	// todo(): populate index from file
+	dbstat, err := dbfile.Stat()
+	indx := map[string]int64{}
+	if err != nil {
+		log.Fatalln(err)
+	}
 
 	switch cmd {
 	case "set":
 		{
 			key := os.Args[2]
 			val := os.Args[3]
-			Set(dbfile, key, val)
+			wrote := Set(dbfile, key, val)
+			indx[key] = dbstat.Size() - wrote - 1
 		}
 	case "get":
 		{
 			// get
 			key := os.Args[2]
-			val, err := Get(dbfile, key)
+			val, err := Get(dbfile, key, indx[key])
 			if err != nil {
 				log.Fatalln(err)
 			}
@@ -62,7 +68,8 @@ func GetHandler(dbfile io.ReadSeeker) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		key, _ := strings.CutPrefix(req.URL.String(), "/get/")
 
-		val, err := Get(dbfile, key)
+		// todo()
+		val, err := Get(dbfile, key, 0)
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -74,28 +81,24 @@ func GetHandler(dbfile io.ReadSeeker) http.HandlerFunc {
 	}
 }
 
-func Set(dbfile io.Writer, key string, val string) {
+func Set(dbfile io.Writer, key string, val string) int64 {
 	// set
 	line := key + "," + val + "\n"
-	_, err := dbfile.Write([]byte(line))
+	written, err := dbfile.Write([]byte(line))
 	if err != nil {
 		log.Fatalln("brew", err)
 	}
+
+	return int64(written)
 }
 
-func Get(dbfile io.ReadSeeker, key string) (string, error) {
-	_, err := dbfile.Seek(0, 0)
+func Get(dbfile io.ReadSeeker, key string, offset int64) (string, error) {
+	_, err := dbfile.Seek(offset, io.SeekStart)
 	if err != nil {
 		return "", err
 	}
 	sc := bufio.NewScanner(dbfile)
-	for sc.Scan() {
-		line := sc.Text()
-		ind := strings.Index(line, key)
-		if ind != -1 {
-			return line[ind+len(key)+1:], nil
-		}
-	}
-
-	return "", errors.New("key does not exist")
+	sc.Scan()
+	line := sc.Text()
+	return line[len(key)+1:], nil
 }
