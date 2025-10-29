@@ -100,3 +100,22 @@ func Get(dbfile io.ReadSeeker, key string, offset int64) (string, error) {
 	line := sc.Text()
 	return line[len(key)+1:], nil
 }
+
+func populateIndex(dbfile io.ReadSeeker) map[string]int64 {
+	res := map[string]int64{}
+	_, err := dbfile.Seek(0, io.SeekStart)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	sc := bufio.NewScanner(dbfile)
+	var offset int64 = 0
+	for sc.Scan() {
+		line := sc.Text()
+
+		key := line[0:strings.Index(line, ",")]
+		res[key] = offset
+		offset += int64(len(line) + 1)
+	}
+	return res
+}

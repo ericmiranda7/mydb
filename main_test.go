@@ -32,6 +32,16 @@ func TestGetSuccess(t *testing.T) {
 	}
 }
 
+func TestPopulateIndex(t *testing.T) {
+	dbfile := bytes.NewReader([]byte("foo,24\nbar,knob\nfoo,42\n"))
+
+	indx := populateIndex(dbfile)
+
+	if indx["foo"] != 16 || indx["bar"] != 7 {
+		t.Fatalf("got %v want %v", indx, "15,7")
+	}
+}
+
 func TestGetLatestIntegration(t *testing.T) {
 	key := "foo"
 	exp := "42"
