@@ -42,7 +42,7 @@ func main() {
 		}
 	case "http":
 		{
-			http.HandleFunc("/get/", GetHandler(dbfile))
+			http.HandleFunc("/get/", GetHandler(dbfile, indx))
 
 			middlewared := LoggingMiddleware(http.DefaultServeMux)
 
@@ -61,12 +61,12 @@ func LoggingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func GetHandler(dbfile io.ReadSeeker) http.HandlerFunc {
+func GetHandler(dbfile io.ReadSeeker, indx map[string]int64) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		key, _ := strings.CutPrefix(req.URL.String(), "/get/")
 
 		// todo(proper offset)
-		val, err := Get(dbfile, key, 0)
+		val, err := Get(dbfile, key, indx[key])
 		if err != nil {
 			log.Fatalln(err)
 		}
