@@ -10,6 +10,7 @@ import (
 	"strings"
 )
 
+// todo(): support newlines in key/val?
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	cmd := os.Args[1]
@@ -24,12 +25,7 @@ func main() {
 		{
 			key := os.Args[2]
 			val := os.Args[3]
-			wrote := Set(dbfile, key, val)
-			dbStat, err := dbfile.Stat()
-			if err != nil {
-				log.Fatalln(err)
-			}
-			indx[key] = dbStat.Size() - wrote - 1
+			Set(dbfile, key, val, indx)
 		}
 	case "get":
 		{
@@ -54,6 +50,16 @@ func main() {
 	}
 }
 
+func Set(dbfile *os.File, key string, val string, indx map[string]int64) {
+	wrote := Persist(dbfile, key, val)
+
+	dbStat, err := dbfile.Stat()
+	if err != nil {
+		log.Fatalln(err)
+	}
+	indx[key] = dbStat.Size() - wrote
+}
+
 func LoggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Println("Received request: ", r.URL)
@@ -61,11 +67,11 @@ func LoggingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// todo(): sethandler
 func GetHandler(dbfile io.ReadSeeker, indx map[string]int64) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		key, _ := strings.CutPrefix(req.URL.String(), "/get/")
 
-		// todo(proper offset)
 		val, err := Get(dbfile, key, indx[key])
 		if err != nil {
 			log.Fatalln(err)
@@ -78,8 +84,7 @@ func GetHandler(dbfile io.ReadSeeker, indx map[string]int64) http.HandlerFunc {
 	}
 }
 
-func Set(dbfile io.Writer, key string, val string) int64 {
-	// set
+func Persist(dbfile io.Writer, key string, val string) int64 {
 	line := key + "," + val + "\n"
 	written, err := dbfile.Write([]byte(line))
 	if err != nil {

@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"os"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -12,7 +14,7 @@ func TestSet(t *testing.T) {
 	val := "23"
 	dbfile := bytes.Buffer{}
 
-	Set(&dbfile, key, val)
+	Persist(&dbfile, key, val)
 
 	if strings.Compare(dbfile.String(), "foo,23\n") != 0 {
 		fmt.Println(dbfile.String())
@@ -46,8 +48,8 @@ func TestGetLatestIntegration(t *testing.T) {
 	key := "foo"
 	exp := "42"
 	buf := bytes.Buffer{}
-	_ = Set(&buf, key, "24")
-	_ = Set(&buf, key, exp)
+	_ = Persist(&buf, key, "24")
+	_ = Persist(&buf, key, exp)
 
 	rdr := bytes.NewReader(buf.Bytes())
 	res, _ := Get(rdr, key, 7)
@@ -68,11 +70,50 @@ func FuzzSet(f *testing.F) {
 	f.Fuzz(func(t *testing.T, key string, val string) {
 		dbfile := bytes.Buffer{}
 
-		Set(&dbfile, key, val)
+		Persist(&dbfile, key, val)
 
 		if strings.Compare(dbfile.String(), fmt.Sprintf("%v,%v\n", key, val)) != 0 {
 			fmt.Println(dbfile.String())
 			t.Fail()
+		}
+	})
+}
+
+func FuzzGetSet(f *testing.F) {
+	keys := []string{"foo", "bar", "baz", "memtable", "cart-v4", "eric"}
+	vals := []string{"foo", "23", "986 423 124", "mip map", "kladsf;921##$$", "#23 clown drive california"}
+
+	for i := 0; i < len(keys); i++ {
+		f.Add(keys[i], vals[i])
+	}
+
+	f.Fuzz(func(t *testing.T, key string, val string) {
+		myKv := map[string]string{}
+		indx := map[string]int64{}
+		dbfile, err := os.CreateTemp("", "testdb")
+		if err != nil {
+			t.Fatal("cannot create temp file")
+		}
+		defer dbfile.Close()
+		defer os.Remove(dbfile.Name())
+
+		r, _ := regexp.Compile("[\\n\\r]")
+
+		if !r.MatchString(key) && !r.MatchString(val) {
+			myKv[key] = val
+			Set(dbfile, key, val, indx)
+		}
+
+		// test all keys
+		for k, v := range myKv {
+			got, err := Get(dbfile, k, indx[k])
+			if err != nil {
+				t.Fatal("br", err)
+			}
+
+			if got != v {
+				t.Fatalf("got %v want %v", got, v)
+			}
 		}
 	})
 }
