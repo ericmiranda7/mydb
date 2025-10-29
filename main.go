@@ -17,8 +17,7 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	// todo(): populate index from file
-	indx := map[string]int64{}
+	indx := populateIndex(dbfile)
 
 	switch cmd {
 	case "set":
