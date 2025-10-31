@@ -34,6 +34,26 @@ func TestGetSuccess(t *testing.T) {
 	}
 }
 
+func TestOffsetSuccess(t *testing.T) {
+	key := "foo"
+	indx := map[string]int64{"foo": 42}
+
+	_, err := OffsetOf(key, indx)
+	if err != nil {
+		t.Fail()
+	}
+}
+
+func TestOffsetFail(t *testing.T) {
+	key := "foos"
+	indx := map[string]int64{"foo": 42}
+
+	_, err := OffsetOf(key, indx)
+	if err == nil {
+		t.Fail()
+	}
+}
+
 func TestPopulateIndex(t *testing.T) {
 	dbfile := bytes.NewReader([]byte("foo,24\nbar,knob\nfoo,42\n"))
 

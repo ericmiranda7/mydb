@@ -2,10 +2,10 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"log"
-	"net/http"
 	"os"
 	"strings"
 )
@@ -30,7 +30,13 @@ func main() {
 	case "get":
 		{
 			key := os.Args[2]
-			val, err := Get(dbfile, key, indx[key])
+			ofst, err := OffsetOf(key, indx)
+			if err != nil {
+				fmt.Println("no such key")
+				return
+			}
+
+			val, err := Get(dbfile, key, ofst)
 			if err != nil {
 				log.Fatalln(err)
 			}
@@ -38,71 +44,9 @@ func main() {
 		}
 	case "http":
 		{
-			http.HandleFunc("/get/", GetHandler(dbfile, indx))
-
-			middlewared := LoggingMiddleware(http.DefaultServeMux)
-
-			err := http.ListenAndServe(":8090", middlewared)
-			if err != nil {
-				log.Fatalln(err)
-			}
+			go run(dbfile, indx)
 		}
 	}
-}
-
-func Set(dbfile *os.File, key string, val string, indx map[string]int64) {
-	wrote := Persist(dbfile, key, val)
-
-	dbStat, err := dbfile.Stat()
-	if err != nil {
-		log.Fatalln(err)
-	}
-	indx[key] = dbStat.Size() - wrote
-}
-
-func LoggingMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Println("Received request: ", r.URL)
-		next.ServeHTTP(w, r)
-	})
-}
-
-// todo(): sethandler
-func GetHandler(dbfile io.ReadSeeker, indx map[string]int64) http.HandlerFunc {
-	return func(w http.ResponseWriter, req *http.Request) {
-		key, _ := strings.CutPrefix(req.URL.String(), "/get/")
-
-		val, err := Get(dbfile, key, indx[key])
-		if err != nil {
-			log.Fatalln(err)
-		}
-
-		_, err = fmt.Fprintf(w, "val for %v is %v", key, val)
-		if err != nil {
-			log.Fatalln(err)
-		}
-	}
-}
-
-func Persist(dbfile io.Writer, key string, val string) int64 {
-	line := key + "," + val + "\n"
-	written, err := dbfile.Write([]byte(line))
-	if err != nil {
-		log.Fatalln("brew", err)
-	}
-
-	return int64(written)
-}
-
-func Get(dbfile io.ReadSeeker, key string, offset int64) (string, error) {
-	_, err := dbfile.Seek(offset, io.SeekStart)
-	if err != nil {
-		return "", err
-	}
-	sc := bufio.NewScanner(dbfile)
-	sc.Scan()
-	line := sc.Text()
-	return line[len(key)+1:], nil
 }
 
 func populateIndex(dbfile io.ReadSeeker) map[string]int64 {
@@ -122,4 +66,44 @@ func populateIndex(dbfile io.ReadSeeker) map[string]int64 {
 		offset += int64(len(line) + 1)
 	}
 	return res
+}
+
+func Set(dbfile *os.File, key string, val string, indx map[string]int64) {
+	wrote := Persist(dbfile, key, val)
+
+	dbStat, err := dbfile.Stat()
+	if err != nil {
+		log.Fatalln(err)
+	}
+	indx[key] = dbStat.Size() - wrote
+}
+
+func OffsetOf(key string, indx map[string]int64) (int64, error) {
+	ofst, exists := indx[key]
+	if !exists {
+		return -1, errors.New("key does not exist")
+	}
+
+	return ofst, nil
+}
+
+func Get(dbfile io.ReadSeeker, key string, offset int64) (string, error) {
+	_, err := dbfile.Seek(offset, io.SeekStart)
+	if err != nil {
+		return "", err
+	}
+	sc := bufio.NewScanner(dbfile)
+	sc.Scan()
+	line := sc.Text()
+	return line[len(key)+1:], nil
+}
+
+func Persist(dbfile io.Writer, key string, val string) int64 {
+	line := key + "," + val + "\n"
+	written, err := dbfile.Write([]byte(line))
+	if err != nil {
+		log.Fatalln("brew", err)
+	}
+
+	return int64(written)
 }

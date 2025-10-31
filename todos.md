@@ -1,0 +1,2 @@
+- [ ]  support newlines in key/val? ./main.go:13
+- [ ]  sethandler ./main.go:70
