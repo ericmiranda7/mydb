@@ -5,11 +5,13 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 )
 
-func run(dbfile io.ReadSeeker, indx map[string]int64) {
+func run(dbfile *os.File, indx map[string]int64) {
 	http.HandleFunc("/get/", GetHandler(dbfile, indx))
+	http.HandleFunc("/set/", SetHandler(dbfile, indx))
 
 	middlewared := LoggingMiddleware(http.DefaultServeMux)
 
@@ -19,14 +21,28 @@ func run(dbfile io.ReadSeeker, indx map[string]int64) {
 	}
 }
 
+func SetHandler(dbfile *os.File, indx map[string]int64) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		key, _ := strings.CutPrefix(r.URL.String(), "/set/")
+		bb, err := io.ReadAll(r.Body)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		val := string(bb)
+		Set(dbfile, key, val, indx)
+		w.WriteHeader(http.StatusCreated)
+	}
+}
+
 // todo(): sethandler
 func GetHandler(dbfile io.ReadSeeker, indx map[string]int64) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		key, _ := strings.CutPrefix(req.URL.String(), "/get/")
 
 		ofst, err := OffsetOf(key, indx)
-		if err == nil {
+		if err != nil {
 			w.WriteHeader(http.StatusNotFound)
+			return
 		}
 		val, err := Get(dbfile, key, ofst)
 		if err != nil {

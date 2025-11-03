@@ -44,7 +44,7 @@ func main() {
 		}
 	case "http":
 		{
-			go run(dbfile, indx)
+			run(dbfile, indx)
 		}
 	}
 }
