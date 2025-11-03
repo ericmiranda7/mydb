@@ -34,7 +34,6 @@ func SetHandler(dbfile *os.File, indx map[string]int64) http.HandlerFunc {
 	}
 }
 
-// todo(): sethandler
 func GetHandler(dbfile io.ReadSeeker, indx map[string]int64) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		key, _ := strings.CutPrefix(req.URL.String(), "/get/")
