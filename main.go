@@ -11,6 +11,7 @@ import (
 )
 
 // todo(): support newlines in key/val?
+// todo(): handle concurrency
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	cmd := os.Args[1]
@@ -25,6 +26,7 @@ func main() {
 		{
 			key := os.Args[2]
 			val := os.Args[3]
+			println(val)
 			Set(dbfile, key, val, indx)
 		}
 	case "get":
