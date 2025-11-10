@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 )
 
 // todo(): support newlines in key/val?
@@ -77,7 +78,51 @@ func Set(dbfile *os.File, key string, val string, indx map[string]int64) {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	indx[key] = dbStat.Size() - wrote
+	latestOffset := dbStat.Size() - wrote
+	indx[key] = latestOffset
+
+	println("latest offset: ", latestOffset)
+	if latestOffset >= 100 {
+		// write segment to disk
+		CreateSegment(dbfile, indx)
+	}
+}
+
+func CreateSegment(dbfile *os.File, indx map[string]int64) {
+	// write out old log
+	nowTime := time.Now()
+	segname := fmt.Sprintf("seg%v%v%v%v%v%v",
+		nowTime.Year(), int(nowTime.Month()), nowTime.Day(), nowTime.Hour(), nowTime.Minute(), nowTime.Second())
+	newSeg, err := os.Create(segname)
+
+	_, err = dbfile.Seek(0, 0)
+	if err != nil {
+		log.Fatalln("cant seek ", err)
+	}
+
+	_, err = io.Copy(newSeg, dbfile)
+	if err != nil {
+		log.Fatalln("cant copy, ", err)
+	}
+
+	newDb, err := os.Create("db")
+	if err != nil {
+		log.Fatalln("cant create, ", err)
+	}
+	// write to new segment
+	*dbfile = *newDb
+
+	// write out segment index
+	ifile, err := os.Create(fmt.Sprintf("indx_%v", segname))
+	if err != nil {
+		log.Fatalln(err)
+	}
+	for k, v := range indx {
+		_, err = ifile.WriteString(fmt.Sprintf("%v %v\n", k, v))
+		if err != nil {
+			log.Fatalln(err)
+		}
+	}
 }
 
 func OffsetOf(key string, indx map[string]int64) (int64, error) {
