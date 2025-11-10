@@ -79,6 +79,7 @@ func FuzzGetSet(f *testing.F) {
 	})
 }
 
+// todo(): segmentation test
 //func TestSegmentation(t *testing.T) {
 //	key := "ottff"
 //	val := "stkerjfnxkfalgktxa"
