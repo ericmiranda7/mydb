@@ -5,13 +5,14 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"strings"
+
+	"git.target.com/eric.miranda/mydb/v2/src/engine"
 )
 
-func run(dbfile *os.File, indx map[string]int64) {
-	http.HandleFunc("/get/", GetHandler(dbfile, indx))
-	http.HandleFunc("/set/", SetHandler(dbfile, indx))
+func run(nob *engine.Nob) {
+	http.HandleFunc("/get/", GetHandler(nob))
+	http.HandleFunc("/set/", SetHandler(nob))
 
 	middlewared := LoggingMiddleware(http.DefaultServeMux)
 
@@ -21,7 +22,7 @@ func run(dbfile *os.File, indx map[string]int64) {
 	}
 }
 
-func SetHandler(dbfile *os.File, indx map[string]int64) http.HandlerFunc {
+func SetHandler(nob *engine.Nob) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		key, _ := strings.CutPrefix(r.URL.String(), "/set/")
 		bb, err := io.ReadAll(r.Body)
@@ -29,21 +30,21 @@ func SetHandler(dbfile *os.File, indx map[string]int64) http.HandlerFunc {
 			log.Fatalln(err)
 		}
 		val := string(bb)
-		Set(dbfile, key, val, indx)
+		nob.Set(key, val)
 		w.WriteHeader(http.StatusCreated)
 	}
 }
 
-func GetHandler(dbfile io.ReadSeeker, indx map[string]int64) http.HandlerFunc {
+func GetHandler(nob *engine.Nob) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		key, _ := strings.CutPrefix(req.URL.String(), "/get/")
 
-		ofst, err := OffsetOf(key, indx)
+		ofst, err := nob.OffsetOf(key)
 		if err != nil {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-		val, err := Get(dbfile, key, ofst)
+		val, err := nob.Get(key, ofst)
 		if err != nil {
 			log.Fatalln(err)
 		}

@@ -1,0 +1,130 @@
+package engine
+
+import (
+	"bufio"
+	"errors"
+	"fmt"
+	"io"
+	"log"
+	"os"
+	"strings"
+	"time"
+)
+
+type Nob struct {
+	dbfile *os.File
+	indx   map[string]int64
+}
+
+func NewNob(dbfile *os.File) *Nob {
+	n := Nob{dbfile: dbfile, indx: make(map[string]int64)}
+	n.populateIndex()
+	return &n
+}
+
+func (nob *Nob) populateIndex() map[string]int64 {
+	res := map[string]int64{}
+	_, err := nob.dbfile.Seek(0, io.SeekStart)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	sc := bufio.NewScanner(nob.dbfile)
+	var offset int64 = 0
+	for sc.Scan() {
+		line := sc.Text()
+
+		key := line[0:strings.Index(line, ",")]
+		res[key] = offset
+		offset += int64(len(line) + 1)
+	}
+	return res
+}
+
+func (nob *Nob) Set(key string, val string) {
+	wrote := nob.Persist(key, val)
+
+	dbStat, err := nob.dbfile.Stat()
+	if err != nil {
+		log.Fatalln(err)
+	}
+	latestOffset := dbStat.Size() - wrote
+	nob.indx[key] = latestOffset
+
+	println("latest offset: ", latestOffset)
+	if latestOffset >= 100 {
+		// write segment to disk
+		nob.CreateSegment()
+	}
+}
+
+func (nob *Nob) CreateSegment() {
+	// write out old log
+	nowTime := time.Now()
+	segname := fmt.Sprintf("seg%v%v%v%v%v%v",
+		nowTime.Year(), int(nowTime.Month()), nowTime.Day(), nowTime.Hour(), nowTime.Minute(), nowTime.Second())
+	newSeg, err := os.Create(segname)
+
+	_, err = nob.dbfile.Seek(0, 0)
+	if err != nil {
+		log.Fatalln("cant seek ", err)
+	}
+
+	_, err = io.Copy(newSeg, nob.dbfile)
+	if err != nil {
+		log.Fatalln("cant copy, ", err)
+	}
+
+	newDb, err := os.Create("db")
+	if err != nil {
+		log.Fatalln("cant create, ", err)
+	}
+	// write to new segment
+	nob.dbfile = newDb
+
+	// write out segment index
+	ifile, err := os.Create(fmt.Sprintf("indx_%v", segname))
+	if err != nil {
+		log.Fatalln(err)
+	}
+	for k, v := range nob.indx {
+		_, err = ifile.WriteString(fmt.Sprintf("%v %v\n", k, v))
+		if err != nil {
+			log.Fatalln(err)
+		}
+	}
+}
+
+func (nob *Nob) offsetOf(key string) (int64, error) {
+	ofst, exists := nob.indx[key]
+	if !exists {
+		return -1, errors.New("key does not exist")
+	}
+
+	return ofst, nil
+}
+
+func (nob *Nob) Get(key string) (string, error) {
+	ofst, err := nob.offsetOf(key)
+	if err != nil {
+		return "", err
+	}
+	_, err = nob.dbfile.Seek(ofst, io.SeekStart)
+	if err != nil {
+		return "", err
+	}
+	sc := bufio.NewScanner(nob.dbfile)
+	sc.Scan()
+	line := sc.Text()
+	return line[len(key)+1:], nil
+}
+
+func (nob *Nob) Persist(key string, val string) int64 {
+	line := key + "," + val + "\n"
+	written, err := nob.dbfile.Write([]byte(line))
+	if err != nil {
+		log.Fatalln("brew", err)
+	}
+
+	return int64(written)
+}
