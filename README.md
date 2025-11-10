@@ -27,7 +27,11 @@ while value is byte offset of that key in the dbfile.
 - No. of keys is the amount of RAM you have
 - Unable to make range queries efficiently (give me all keys / values between 'apple' and 'bat')
 
-#### Byte Offset + Merging & Compaction
+#### TODO(): Byte Offset + Merging & Compaction
+Rather than maintaining one massive logfile, let's write the log to disk after every x mb. On this logfile, we run
+compaction (replacing old key-values with only the latest value). Further, we can also merge multiple segments
+into 1, allowing for compaction across segments (merging).
+
 **Cons**
 - [ ] Writes have become more complicated (as we have to maintain an index)
 - [ ] Index as metadata increases storage size
@@ -37,7 +41,7 @@ while value is byte offset of that key in the dbfile.
 - [ ] Unable to make range queries efficiently (give me all keys / values between 'apple' and 'bat')
 
 
-### SSTable Format
+### TODO(): SSTable Format
 We can solve a few of the cons:
 **Cons**
 - [ ]Writes have become more complicated (as we have to maintain an index)
