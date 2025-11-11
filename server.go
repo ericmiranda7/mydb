@@ -39,14 +39,10 @@ func GetHandler(nob *engine.Nob) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		key, _ := strings.CutPrefix(req.URL.String(), "/get/")
 
-		ofst, err := nob.OffsetOf(key)
+		val, err := nob.Get(key)
 		if err != nil {
 			w.WriteHeader(http.StatusNotFound)
 			return
-		}
-		val, err := nob.Get(key, ofst)
-		if err != nil {
-			log.Fatalln(err)
 		}
 
 		_, err = fmt.Fprintf(w, "val for %v is %v", key, val)

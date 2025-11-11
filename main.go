@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path"
+	"strings"
 
 	"git.target.com/eric.miranda/mydb/v2/src/engine"
 )
@@ -12,13 +14,22 @@ import (
 // todo(): handle concurrency
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	cmd := os.Args[1]
-	dbfile, err := os.OpenFile("db", os.O_CREATE|os.O_APPEND|os.O_RDWR, 0646)
+
+	rootDir := "."
+	for _, kv := range os.Environ() {
+		kva := strings.Split(kv, "=")
+
+		if kva[0] == "ROOT_DIR" {
+			rootDir = kva[1]
+		}
+	}
+	dbfile, err := os.OpenFile(path.Join(rootDir, "db"), os.O_CREATE|os.O_APPEND|os.O_RDWR, 0646)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	nob := engine.NewNob(dbfile)
+	nob := engine.NewNob(dbfile, rootDir)
 
+	cmd := os.Args[1]
 	switch cmd {
 	case "set":
 		{
@@ -30,13 +41,8 @@ func main() {
 	case "get":
 		{
 			key := os.Args[2]
-			ofst, err := nob.OffsetOf(key)
-			if err != nil {
-				fmt.Println("no such key")
-				return
-			}
 
-			val, err := nob.Get(key, ofst)
+			val, err := nob.Get(key)
 			if err != nil {
 				log.Fatalln(err)
 			}

@@ -7,17 +7,19 @@ import (
 	"io"
 	"log"
 	"os"
+	"path"
 	"strings"
 	"time"
 )
 
 type Nob struct {
-	dbfile *os.File
-	indx   map[string]int64
+	dbfile  *os.File
+	indx    map[string]int64
+	rootDir string
 }
 
-func NewNob(dbfile *os.File) *Nob {
-	n := Nob{dbfile: dbfile, indx: make(map[string]int64)}
+func NewNob(dbfile *os.File, rootDir string) *Nob {
+	n := Nob{dbfile: dbfile, indx: make(map[string]int64), rootDir: rootDir}
 	n.populateIndex()
 	return &n
 }
@@ -63,7 +65,7 @@ func (nob *Nob) CreateSegment() {
 	nowTime := time.Now()
 	segname := fmt.Sprintf("seg%v%v%v%v%v%v",
 		nowTime.Year(), int(nowTime.Month()), nowTime.Day(), nowTime.Hour(), nowTime.Minute(), nowTime.Second())
-	newSeg, err := os.Create(segname)
+	newSeg, err := os.Create(path.Join(nob.rootDir, segname))
 
 	_, err = nob.dbfile.Seek(0, 0)
 	if err != nil {
@@ -75,7 +77,7 @@ func (nob *Nob) CreateSegment() {
 		log.Fatalln("cant copy, ", err)
 	}
 
-	newDb, err := os.Create("db")
+	newDb, err := os.Create(path.Join(nob.rootDir, "db"))
 	if err != nil {
 		log.Fatalln("cant create, ", err)
 	}
@@ -83,7 +85,7 @@ func (nob *Nob) CreateSegment() {
 	nob.dbfile = newDb
 
 	// write out segment index
-	ifile, err := os.Create(fmt.Sprintf("indx_%v", segname))
+	ifile, err := os.Create(path.Join(nob.rootDir, fmt.Sprintf("indx_%v", segname)))
 	if err != nil {
 		log.Fatalln(err)
 	}
