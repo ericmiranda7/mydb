@@ -78,7 +78,6 @@ func FuzzGetSet(f *testing.F) {
 	})
 }
 
-// todo(): segmentation test
 func TestSegmentation(t *testing.T) {
 	// 20 bytes
 	key := "ottff"
