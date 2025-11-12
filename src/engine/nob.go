@@ -24,27 +24,8 @@ func NewNob(dbfile *os.File, rootDir string) *Nob {
 	return &n
 }
 
-func (nob *Nob) populateIndex() map[string]int64 {
-	res := map[string]int64{}
-	_, err := nob.dbfile.Seek(0, io.SeekStart)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	sc := bufio.NewScanner(nob.dbfile)
-	var offset int64 = 0
-	for sc.Scan() {
-		line := sc.Text()
-
-		key := line[0:strings.Index(line, ",")]
-		res[key] = offset
-		offset += int64(len(line) + 1)
-	}
-	return res
-}
-
 func (nob *Nob) Set(key string, val string) {
-	wrote := nob.Persist(key, val)
+	wrote := nob.persist(key, val)
 
 	dbStat, err := nob.dbfile.Stat()
 	if err != nil {
@@ -56,11 +37,35 @@ func (nob *Nob) Set(key string, val string) {
 	println("latest offset: ", latestOffset)
 	if latestOffset >= 100 {
 		// write segment to disk
-		nob.CreateSegment()
+		nob.createSegment()
 	}
 }
 
-func (nob *Nob) CreateSegment() {
+func (nob *Nob) Get(key string) (string, error) {
+	ofst, err := nob.offsetOf(key)
+	if err != nil {
+		return "", err
+	}
+	_, err = nob.dbfile.Seek(ofst, io.SeekStart)
+	if err != nil {
+		return "", err
+	}
+	sc := bufio.NewScanner(nob.dbfile)
+	sc.Scan()
+	line := sc.Text()
+	return line[len(key)+1:], nil
+}
+
+func (nob *Nob) persist(key string, val string) int64 {
+	line := key + "," + val + "\n"
+	written, err := nob.dbfile.Write([]byte(line))
+	if err != nil {
+		log.Fatalln("brew", err)
+	}
+
+	return int64(written)
+}
+func (nob *Nob) createSegment() {
 	// write out old log
 	nowTime := time.Now()
 	segname := fmt.Sprintf("seg%v%v%v%v%v%v",
@@ -106,27 +111,21 @@ func (nob *Nob) offsetOf(key string) (int64, error) {
 	return ofst, nil
 }
 
-func (nob *Nob) Get(key string) (string, error) {
-	ofst, err := nob.offsetOf(key)
+func (nob *Nob) populateIndex() map[string]int64 {
+	res := map[string]int64{}
+	_, err := nob.dbfile.Seek(0, io.SeekStart)
 	if err != nil {
-		return "", err
+		log.Fatalln(err)
 	}
-	_, err = nob.dbfile.Seek(ofst, io.SeekStart)
-	if err != nil {
-		return "", err
-	}
+
 	sc := bufio.NewScanner(nob.dbfile)
-	sc.Scan()
-	line := sc.Text()
-	return line[len(key)+1:], nil
-}
+	var offset int64 = 0
+	for sc.Scan() {
+		line := sc.Text()
 
-func (nob *Nob) Persist(key string, val string) int64 {
-	line := key + "," + val + "\n"
-	written, err := nob.dbfile.Write([]byte(line))
-	if err != nil {
-		log.Fatalln("brew", err)
+		key := line[0:strings.Index(line, ",")]
+		res[key] = offset
+		offset += int64(len(line) + 1)
 	}
-
-	return int64(written)
+	return res
 }
