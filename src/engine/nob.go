@@ -56,6 +56,29 @@ func (nob *Nob) Get(key string) (string, error) {
 	return line[len(key)+1:], nil
 }
 
+//
+//func (nob *Nob) mergeCompact(f1, f2 *os.File) {
+//	merged := merge(f1, f2)
+//	compact := c(merged)
+//	writeFile(compact)
+//	writeFile(indexOf(compact))
+//}
+
+func (nob *Nob) compact(files ...*os.File) map[string]string {
+	res := map[string]string{}
+
+	for _, f := range files {
+		sc := bufio.NewScanner(f)
+
+		for sc.Scan() {
+			kv := strings.Split(sc.Text(), " ")
+			res[kv[0]] = kv[1]
+		}
+	}
+
+	return res
+}
+
 func (nob *Nob) persist(key string, val string) int64 {
 	line := key + "," + val + "\n"
 	written, err := nob.dbfile.Write([]byte(line))
@@ -65,6 +88,7 @@ func (nob *Nob) persist(key string, val string) int64 {
 
 	return int64(written)
 }
+
 func (nob *Nob) createSegment() {
 	// write out old log
 	nowTime := time.Now()

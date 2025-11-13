@@ -1,14 +1,19 @@
 package engine
 
 import (
+	"maps"
 	"os"
 	"path"
 	"regexp"
 	"testing"
 )
 
+// working dir of file engine
 func getNob(dir string) *Nob {
 	dbfile := setupDbFile(dir)
+	return NewNob(dbfile, dir)
+}
+func getCustomNob(dbfile *os.File, dir string) *Nob {
 	return NewNob(dbfile, dir)
 }
 
@@ -114,3 +119,40 @@ func TestSegmentation(t *testing.T) {
 		t.Fatal("shouldve been a segment file")
 	}
 }
+
+//
+//func TestMerge(t *testing.T) {
+//	f1, _ := os.Open("test-data/seg1")
+//	f2, _ := os.Open("test-data/seg2")
+//	merge(f1, f2)
+//}
+
+func TestCompact(t *testing.T) {
+	f1, _ := os.Open("test-data/seg1")
+	f2, _ := os.Open("test-data/seg2")
+	tdir := t.TempDir()
+	nob := getNob(tdir)
+
+	res := nob.compact(f1, f2)
+	exp := map[string]string{
+		"foo":     "latest",
+		"baz":     "asolatest",
+		"finbean": "82",
+	}
+
+	if !maps.Equal(res, exp) {
+		t.Fatalf("got %v want %v", res, exp)
+	}
+}
+
+//func TestMergeCompact(t *testing.T) {
+//	f1 := open(seg1)
+//	f2 := open(seg2)
+//
+//	mergeCompact(f1, f2)
+//
+//	// expect dir contains compacted_file, compacted_indx
+//	// expect compacted_file == {foo:42, bar:23}
+//	// expect compacted_indx to be {foo: boff, bar: boff}
+//	// expect f1, f2 to be deleted
+//}
