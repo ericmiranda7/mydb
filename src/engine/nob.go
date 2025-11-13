@@ -8,6 +8,8 @@ import (
 	"log"
 	"os"
 	"path"
+	"regexp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -56,13 +58,28 @@ func (nob *Nob) Get(key string) (string, error) {
 	return line[len(key)+1:], nil
 }
 
-//
 //func (nob *Nob) mergeCompact(f1, f2 *os.File) {
-//	merged := merge(f1, f2)
-//	compact := c(merged)
-//	writeFile(compact)
-//	writeFile(indexOf(compact))
+//	//	merged := merge(f1, f2)
+//	getOrderedSegFiles(osDir)
+//	//	compact := c(merged)
+//	//	writeFile(compact)
+//	//	writeFile(indexOf(compact))
 //}
+
+func (nob *Nob) getOrderedSegFiles() []string {
+	dirs, _ := os.ReadDir(nob.rootDir)
+	sort.Slice(dirs, func(i, j int) bool {
+		return dirs[i].Name() < dirs[j].Name()
+	})
+
+	var res []string
+	for _, dir := range dirs {
+		if ok, _ := regexp.MatchString("^seg", dir.Name()); ok {
+			res = append(res, dir.Name())
+		}
+	}
+	return res
+}
 
 func (nob *Nob) compact(files ...*os.File) map[string]string {
 	res := map[string]string{}

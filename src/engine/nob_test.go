@@ -5,15 +5,13 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"slices"
 	"testing"
 )
 
 // working dir of file engine
 func getNob(dir string) *Nob {
 	dbfile := setupDbFile(dir)
-	return NewNob(dbfile, dir)
-}
-func getCustomNob(dbfile *os.File, dir string) *Nob {
 	return NewNob(dbfile, dir)
 }
 
@@ -120,13 +118,6 @@ func TestSegmentation(t *testing.T) {
 	}
 }
 
-//
-//func TestMerge(t *testing.T) {
-//	f1, _ := os.Open("test-data/seg1")
-//	f2, _ := os.Open("test-data/seg2")
-//	merge(f1, f2)
-//}
-
 func TestCompact(t *testing.T) {
 	f1, _ := os.Open("test-data/seg1")
 	f2, _ := os.Open("test-data/seg2")
@@ -146,8 +137,8 @@ func TestCompact(t *testing.T) {
 }
 
 //func TestMergeCompact(t *testing.T) {
-//	f1 := open(seg1)
-//	f2 := open(seg2)
+//	f1, _ := os.Open("test-data/seg1")
+//	f2, _ := os.Open("test-data/seg2")
 //
 //	mergeCompact(f1, f2)
 //
@@ -156,3 +147,14 @@ func TestCompact(t *testing.T) {
 //	// expect compacted_indx to be {foo: boff, bar: boff}
 //	// expect f1, f2 to be deleted
 //}
+
+func TestGetOrderedFiles(t *testing.T) {
+	nob := getNob("test-data/")
+
+	res := nob.getOrderedSegFiles()
+	exp := []string{"seg1", "seg2"}
+
+	if !slices.Equal(res, exp) {
+		t.Fatalf("got %v want %v", res, exp)
+	}
+}
