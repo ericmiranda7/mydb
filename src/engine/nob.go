@@ -58,24 +58,35 @@ func (nob *Nob) Get(key string) (string, error) {
 	return line[len(key)+1:], nil
 }
 
-//func (nob *Nob) mergeCompact(f1, f2 *os.File) {
-//	//	merged := merge(f1, f2)
-//	getOrderedSegFiles(osDir)
-//	//	compact := c(merged)
-//	//	writeFile(compact)
-//	//	writeFile(indexOf(compact))
-//}
+func (nob *Nob) mergeCompact() {
+	stringFiles := nob.getOrderedSegFiles()
+	var files []*os.File
+	for _, f := range stringFiles {
+		of, _ := os.Open(f)
+		files = append(files, of)
+	}
+	compact := nob.compact(files...)
+	writePath := path.Join(nob.rootDir, "compacted_file")
+	wf, err := os.Create(writePath)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	for k, v := range compact {
+		_, _ = io.WriteString(wf, fmt.Sprintf("%v %v\n", k, v))
+	}
+	//	todo(): writeFile(indexOf(compact))
+}
 
 func (nob *Nob) getOrderedSegFiles() []string {
-	dirs, _ := os.ReadDir(nob.rootDir)
-	sort.Slice(dirs, func(i, j int) bool {
-		return dirs[i].Name() < dirs[j].Name()
+	dirFiles, _ := os.ReadDir(nob.rootDir)
+	sort.Slice(dirFiles, func(i, j int) bool {
+		return dirFiles[i].Name() < dirFiles[j].Name()
 	})
 
 	var res []string
-	for _, dir := range dirs {
-		if ok, _ := regexp.MatchString("^seg", dir.Name()); ok {
-			res = append(res, dir.Name())
+	for _, file := range dirFiles {
+		if ok, _ := regexp.MatchString("^seg", file.Name()); ok {
+			res = append(res, path.Join(nob.rootDir, file.Name()))
 		}
 	}
 	return res

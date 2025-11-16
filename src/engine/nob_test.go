@@ -1,11 +1,15 @@
 package engine
 
 import (
+	"fmt"
+	"io"
+	"log"
 	"maps"
 	"os"
 	"path"
 	"regexp"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -105,14 +109,12 @@ func TestSegmentation(t *testing.T) {
 
 	c := 0
 	for _, dir := range dirs {
-		println(dir.Name())
 		rxp, _ := regexp.Compile("^seg.*")
 		if rxp.MatchString(dir.Name()) {
 			c += 1
 		}
 	}
 
-	println("c is ", c)
 	if c != 1 {
 		t.Fatal("shouldve been a segment file")
 	}
@@ -136,17 +138,63 @@ func TestCompact(t *testing.T) {
 	}
 }
 
-//func TestMergeCompact(t *testing.T) {
-//	f1, _ := os.Open("test-data/seg1")
-//	f2, _ := os.Open("test-data/seg2")
-//
-//	mergeCompact(f1, f2)
-//
-//	// expect dir contains compacted_file, compacted_indx
-//	// expect compacted_file == {foo:42, bar:23}
-//	// expect compacted_indx to be {foo: boff, bar: boff}
-//	// expect f1, f2 to be deleted
-//}
+func TestMergeCompact(t *testing.T) {
+	tdir := t.TempDir()
+	setupTestFile("test-data", tdir)
+	nob := getNob(tdir)
+
+	nob.mergeCompact()
+
+	files, _ := os.ReadDir(tdir)
+	for _, f := range files {
+		log.Println("x", f.Name())
+		if f.Name() == "compacted_file" {
+			of, _ := os.Open(f.Name())
+			b, _ := io.ReadAll(of)
+			println(string(b))
+		}
+	}
+
+	// expect dir contains compacted_file, compacted_indx
+	var containsFile bool = false
+	for _, f := range files {
+		if strings.Contains(f.Name(), "compacted_file") {
+			containsFile = true
+		}
+	}
+	if containsFile != true {
+		t.Fatalf("no compacted_file")
+	}
+	cf, err := os.Open(path.Join(tdir, "compacted_file"))
+	ce(err)
+	rdr, err := io.ReadAll(cf)
+	ce(err)
+	got := convStrToMap(string(rdr))
+	want := map[string]string{
+		"baz":     "asolatest",
+		"finbean": "82",
+		"foo":     "latest",
+	}
+	if !maps.Equal(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+
+	// todo(): index file creation, tests
+	// expect compacted_indx to be {foo: boff, bar: boff}
+	// expect f1, f2 to be deleted
+}
+
+func convStrToMap(str string) map[string]string {
+	res := map[string]string{}
+	kvs := strings.Split(strings.Trim(str, "\n"), "\n")
+	for _, kv := range kvs {
+		skv := strings.Split(kv, " ")
+		fmt.Println(skv)
+		res[skv[0]] = skv[1]
+	}
+
+	return res
+}
 
 func TestGetOrderedFiles(t *testing.T) {
 	nob := getNob("test-data/")
@@ -156,5 +204,28 @@ func TestGetOrderedFiles(t *testing.T) {
 
 	if !slices.Equal(res, exp) {
 		t.Fatalf("got %v want %v", res, exp)
+	}
+}
+
+func setupTestFile(srcdir, tdir string) {
+	files, _ := os.ReadDir(srcdir)
+	for _, f := range files {
+		if strings.Contains(f.Name(), "seg") {
+			copyFile(path.Join(tdir, f.Name()), path.Join(srcdir, f.Name()))
+		}
+	}
+}
+
+func copyFile(dst, src string) {
+	sf, _ := os.Open(src)
+	data, err := io.ReadAll(sf)
+	ce(err)
+	err = os.WriteFile(dst, data, 0644)
+	ce(err)
+}
+
+func ce(err error) {
+	if err != nil {
+		log.Fatalln(err)
 	}
 }
