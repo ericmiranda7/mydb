@@ -36,7 +36,6 @@ func (nob *Nob) Set(key string, val string) {
 	latestOffset := dbStat.Size() - wrote
 	nob.indx[key] = latestOffset
 
-	println("latest offset: ", latestOffset)
 	if latestOffset >= 100 {
 		// write segment to disk
 		nob.createSegment()

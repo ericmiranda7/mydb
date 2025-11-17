@@ -13,17 +13,6 @@ import (
 	"testing"
 )
 
-// working dir of file engine
-func getNob(dir string) *Nob {
-	dbfile := setupDbFile(dir)
-	return NewNob(dbfile, dir)
-}
-
-func setupDbFile(dir string) *os.File {
-	dbfile, _ := os.Create(path.Join(dir, "db"))
-	return dbfile
-}
-
 func TestSetAndGet(t *testing.T) {
 	key := "foo"
 	val := "23"
@@ -197,10 +186,11 @@ func convStrToMap(str string) map[string]string {
 }
 
 func TestGetOrderedFiles(t *testing.T) {
-	nob := getNob("test-data/")
+	inpDir := "test-data"
+	nob := getNob(inpDir)
 
 	res := nob.getOrderedSegFiles()
-	exp := []string{"seg1", "seg2"}
+	exp := []string{path.Join(inpDir, "seg1"), path.Join(inpDir, "seg2")}
 
 	if !slices.Equal(res, exp) {
 		t.Fatalf("got %v want %v", res, exp)
@@ -216,6 +206,7 @@ func setupTestFile(srcdir, tdir string) {
 	}
 }
 
+// test helpers
 func copyFile(dst, src string) {
 	sf, _ := os.Open(src)
 	data, err := io.ReadAll(sf)
@@ -228,4 +219,14 @@ func ce(err error) {
 	if err != nil {
 		log.Fatalln(err)
 	}
+}
+
+func getNob(dir string) *Nob {
+	dbfile := setupDbFile(dir)
+	return NewNob(dbfile, dir)
+}
+
+func setupDbFile(dir string) *os.File {
+	dbfile, _ := os.Create(path.Join(dir, "db"))
+	return dbfile
 }
