@@ -21,8 +21,8 @@ type Nob struct {
 }
 
 func NewNob(dbfile *os.File, rootDir string) *Nob {
-	n := Nob{dbfile: dbfile, indx: nil), rootDir: rootDir}
-	n.indx = populateIndex(dbfile)
+	n := Nob{dbfile: dbfile, indx: nil, rootDir: rootDir}
+	n.indx = getIndexFrom(dbfile)
 	return &n
 }
 
@@ -162,7 +162,7 @@ func (nob *Nob) offsetOf(key string) (int64, error) {
 	return ofst, nil
 }
 
-func populateIndex(f *os.File) map[string]int64 {
+func getIndexFrom(f *os.File) map[string]int64 {
 	res := map[string]int64{}
 	_, err := f.Seek(0, io.SeekStart)
 	if err != nil {
