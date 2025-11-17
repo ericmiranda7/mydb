@@ -65,6 +65,7 @@ func (nob *Nob) mergeCompact() {
 		files = append(files, of)
 	}
 	compact := nob.compact(files...)
+	// todo(): runtimestamped compacted_file
 	writePath := path.Join(nob.rootDir, "compacted_file")
 	wf, err := os.Create(writePath)
 	if err != nil {
@@ -74,6 +75,9 @@ func (nob *Nob) mergeCompact() {
 		_, _ = io.WriteString(wf, fmt.Sprintf("%v %v\n", k, v))
 	}
 	//	todo(): writeFile(indexOf(compact))
+	segIndx := getIndexFrom(wf)
+	fmt.Println(segIndx)
+	writeSegmentIndex(nob.rootDir, "compacted", segIndx)
 }
 
 func (nob *Nob) getOrderedSegFiles() []string {
@@ -107,7 +111,7 @@ func (nob *Nob) compact(files ...*os.File) map[string]string {
 }
 
 func (nob *Nob) persist(key string, val string) int64 {
-	line := key + "," + val + "\n"
+	line := key + " " + val + "\n"
 	written, err := nob.dbfile.Write([]byte(line))
 	if err != nil {
 		log.Fatalln("brew", err)
@@ -140,17 +144,22 @@ func (nob *Nob) createSegment() {
 	// write to new segment
 	nob.dbfile = newDb
 
+	writeSegmentIndex(nob.rootDir, segname, nob.indx)
+}
+
+func writeSegmentIndex(rootDir, segName string, indx map[string]int64) {
 	// write out segment index
-	ifile, err := os.Create(path.Join(nob.rootDir, fmt.Sprintf("indx_%v", segname)))
+	ifile, err := os.Create(path.Join(rootDir, fmt.Sprintf("indx_%v", segName)))
 	if err != nil {
 		log.Fatalln(err)
 	}
-	for k, v := range nob.indx {
+	for k, v := range indx {
 		_, err = ifile.WriteString(fmt.Sprintf("%v %v\n", k, v))
 		if err != nil {
 			log.Fatalln(err)
 		}
 	}
+	println(ifile.Name())
 }
 
 func (nob *Nob) offsetOf(key string) (int64, error) {
@@ -174,7 +183,7 @@ func getIndexFrom(f *os.File) map[string]int64 {
 	for sc.Scan() {
 		line := sc.Text()
 
-		key := line[0:strings.Index(line, ",")]
+		key := line[0:strings.Index(line, " ")]
 		res[key] = offset
 		offset += int64(len(line) + 1)
 	}

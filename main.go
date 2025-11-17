@@ -35,7 +35,7 @@ func main() {
 		{
 			key := os.Args[2]
 			val := os.Args[3]
-			println(val)
+			fmt.Printf("SET %v %v\n", key, val)
 			nob.Set(key, val)
 		}
 	case "get":

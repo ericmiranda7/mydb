@@ -135,14 +135,6 @@ func TestMergeCompact(t *testing.T) {
 	nob.mergeCompact()
 
 	files, _ := os.ReadDir(tdir)
-	for _, f := range files {
-		log.Println("x", f.Name())
-		if f.Name() == "compacted_file" {
-			of, _ := os.Open(f.Name())
-			b, _ := io.ReadAll(of)
-			println(string(b))
-		}
-	}
 
 	// expect dir contains compacted_file, compacted_indx
 	var containsFile bool = false
@@ -170,6 +162,21 @@ func TestMergeCompact(t *testing.T) {
 
 	// todo(): index file creation, tests
 	// expect compacted_indx to be {foo: boff, bar: boff}
+	fmt.Println("file is", string(rdr))
+	ci, err := os.Open(path.Join(tdir, "indx_compacted"))
+	ce(err)
+	b, err := io.ReadAll(ci)
+	got = convStrToMap(string(b))
+	want = map[string]string{
+		"baz":     "92",
+		"foo":     "85",
+		"finbean": "42",
+	}
+	if !maps.Equal(got, want) {
+		// todo(FIRST): figure out how to validate essentially application-duplicated code (getIndexFrom)
+		// should i write the identical app function as a test func? what do people do normally?
+		t.Fatalf("got %v, want %v", got, want)
+	}
 	// expect f1, f2 to be deleted
 }
 
@@ -178,7 +185,6 @@ func convStrToMap(str string) map[string]string {
 	kvs := strings.Split(strings.Trim(str, "\n"), "\n")
 	for _, kv := range kvs {
 		skv := strings.Split(kv, " ")
-		fmt.Println(skv)
 		res[skv[0]] = skv[1]
 	}
 
