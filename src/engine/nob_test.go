@@ -47,7 +47,7 @@ func TestPopulateIndex(t *testing.T) {
 	nob.Set("bar", "knob")
 	nob.Set("foo", "42")
 
-	indx := nob.populateIndex()
+	indx := populateIndex(nob.dbfile)
 
 	if indx["foo"] != 16 || indx["bar"] != 7 {
 		t.Fatalf("got %v want %v", indx, "15,7")
@@ -197,6 +197,7 @@ func TestGetOrderedFiles(t *testing.T) {
 	}
 }
 
+// test helpers
 func setupTestFile(srcdir, tdir string) {
 	files, _ := os.ReadDir(srcdir)
 	for _, f := range files {
@@ -206,7 +207,6 @@ func setupTestFile(srcdir, tdir string) {
 	}
 }
 
-// test helpers
 func copyFile(dst, src string) {
 	sf, _ := os.Open(src)
 	data, err := io.ReadAll(sf)

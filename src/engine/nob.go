@@ -21,8 +21,8 @@ type Nob struct {
 }
 
 func NewNob(dbfile *os.File, rootDir string) *Nob {
-	n := Nob{dbfile: dbfile, indx: make(map[string]int64), rootDir: rootDir}
-	n.populateIndex()
+	n := Nob{dbfile: dbfile, indx: nil), rootDir: rootDir}
+	n.indx = populateIndex(dbfile)
 	return &n
 }
 
@@ -162,14 +162,14 @@ func (nob *Nob) offsetOf(key string) (int64, error) {
 	return ofst, nil
 }
 
-func (nob *Nob) populateIndex() map[string]int64 {
+func populateIndex(f *os.File) map[string]int64 {
 	res := map[string]int64{}
-	_, err := nob.dbfile.Seek(0, io.SeekStart)
+	_, err := f.Seek(0, io.SeekStart)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	sc := bufio.NewScanner(nob.dbfile)
+	sc := bufio.NewScanner(f)
 	var offset int64 = 0
 	for sc.Scan() {
 		line := sc.Text()
