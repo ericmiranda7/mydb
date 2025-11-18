@@ -12,6 +12,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"git.target.com/eric.miranda/mydb/v2/src/util"
 )
 
 type Nob struct {
@@ -58,26 +60,27 @@ func (nob *Nob) Get(key string) (string, error) {
 }
 
 func (nob *Nob) mergeCompact() {
-	stringFiles := nob.getOrderedSegFiles()
+	orderedFileNames := nob.getOrderedSegFiles()
 	var files []*os.File
-	for _, f := range stringFiles {
+	for _, f := range orderedFileNames {
 		of, _ := os.Open(f)
 		files = append(files, of)
 	}
-	compact := nob.compact(files...)
+	compactedMap := nob.compact(files...)
+
 	// todo(): runtimestamped compacted_file
-	writePath := path.Join(nob.rootDir, "compacted_file")
-	wf, err := os.Create(writePath)
-	if err != nil {
-		log.Fatalln(err)
+
+	compactedFileWritePath := path.Join(nob.rootDir, "compacted_file")
+	compactedFile, err := os.Create(compactedFileWritePath)
+	util.Ce(err)
+
+	for k, v := range compactedMap {
+		_, _ = io.WriteString(compactedFile, fmt.Sprintf("%v %v\n", k, v))
 	}
-	for k, v := range compact {
-		_, _ = io.WriteString(wf, fmt.Sprintf("%v %v\n", k, v))
-	}
-	//	todo(): writeFile(indexOf(compact))
-	segIndx := getIndexFrom(wf)
-	fmt.Println(segIndx)
-	writeSegmentIndex(nob.rootDir, "compacted", segIndx)
+
+	//	todo(): writeFile(indexOf(compactedMap))
+	compactedIndx := getIndexFrom(compactedFile)
+	writeSegmentIndex(nob.rootDir, "compacted", compactedIndx)
 }
 
 func (nob *Nob) getOrderedSegFiles() []string {
