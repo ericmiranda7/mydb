@@ -31,12 +31,7 @@ func NewNob(dbfile *os.File, rootDir string) *Nob {
 func (nob *Nob) Set(key string, val string) {
 	wrote := nob.persist(key, val)
 
-	dbStat, err := nob.dbfile.Stat()
-	if err != nil {
-		log.Fatalln(err)
-	}
-	latestOffset := dbStat.Size() - wrote
-	nob.indx[key] = latestOffset
+	latestOffset := nob.updateOffset(key, wrote)
 
 	if latestOffset >= 100 {
 		// write segment to disk
@@ -113,16 +108,6 @@ func (nob *Nob) compact(files ...*os.File) map[string]string {
 	return res
 }
 
-func (nob *Nob) persist(key string, val string) int64 {
-	line := key + " " + val + "\n"
-	written, err := nob.dbfile.Write([]byte(line))
-	if err != nil {
-		log.Fatalln("brew", err)
-	}
-
-	return int64(written)
-}
-
 func (nob *Nob) createSegment() {
 	// write out old log
 	nowTime := time.Now()
@@ -191,4 +176,22 @@ func getIndexFrom(f *os.File) map[string]int64 {
 		offset += int64(len(line) + 1)
 	}
 	return res
+}
+
+func (nob *Nob) persist(key string, val string) int64 {
+	line := key + " " + val + "\n"
+	written, err := nob.dbfile.Write([]byte(line))
+	if err != nil {
+		log.Fatalln("brew", err)
+	}
+
+	return int64(written)
+}
+
+func (nob *Nob) updateOffset(key string, wrote int64) int64 {
+	dbStat, err := nob.dbfile.Stat()
+	util.Ce(err)
+	latestOffset := dbStat.Size() - wrote
+	nob.indx[key] = latestOffset
+	return latestOffset
 }
