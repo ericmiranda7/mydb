@@ -28,6 +28,7 @@ func NewNob(dbfile *os.File, rootDir string) *Nob {
 		for {
 			select {
 			case <-ticker.C:
+				// TODO(first): why are there 2 indx files created? haw?
 				n.mergeCompact()
 			}
 		}
