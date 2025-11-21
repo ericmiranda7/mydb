@@ -29,14 +29,14 @@ while value is byte offset of that key in the dbfile.
 
 #### TODO(): Byte Offset + Merging & Compaction
 Rather than maintaining one massive logfile, let's write the log to disk after every x mb. On this logfile, we run
-compaction (replacing old key-values with only the latest value). Further, we can also merge multiple segments
+compaction (replacing old key-values with only the latest value). Further, we could instead merge multiple segments
 into 1, allowing for compaction across segments (merging).
 
 **Cons**
 - [ ] Writes have become more complicated (as we have to maintain an index)
 - [ ] Index as metadata increases storage size
-- [x] Overwritten keys still aren't reclaimed
-- [x] On restarts, we need to scan _smaller log segments to rebuild the index which is not too expensive_
+- [x] ~~Overwritten keys still aren't reclaimed~~
+- [x] ~~On restarts, we need to scan _smaller log segments to rebuild the index which is not too expensive_~~
 - [ ] No. of keys is the amount of RAM you have
 - [ ] Unable to make range queries efficiently (give me all keys / values between 'apple' and 'bat')
 
@@ -46,9 +46,9 @@ We can solve a few of the cons:
 **Cons**
 - [ ]Writes have become more complicated (as we have to maintain an index)
 - [ ] Index as metadata increases storage size
-- [x] Overwritten keys still aren't reclaimed
-- [x] On restarts, we need to scan the entire log to rebuild the index which is very expensive
-- [x] No. of keys is the amount of RAM you have
-- [x] Unable to make range queries efficiently (give me all keys / values between 'apple' and 'bat')
+- [x] ~~Overwritten keys still aren't reclaimed~~
+- [x] ~~On restarts, we need to scan the entire log to rebuild the index which is very expensive~~
+- [x] ~~No. of keys is the amount of RAM you have~~
+- [x] ~~Unable to make range queries efficiently (give me all keys / values between 'apple' and 'bat')~~
 
 Using an SSTable!
