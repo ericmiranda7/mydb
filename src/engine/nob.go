@@ -23,6 +23,15 @@ type Nob struct {
 func NewNob(dbfile *os.File, rootDir string) *Nob {
 	n := Nob{dbfile: dbfile, indx: nil, rootDir: rootDir}
 	n.indx = getIndexFrom(dbfile)
+	ticker := time.NewTicker(time.Second * 10)
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				n.mergeCompact()
+			}
+		}
+	}()
 	return &n
 }
 
