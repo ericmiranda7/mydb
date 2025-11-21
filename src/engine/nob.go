@@ -12,8 +12,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"git.target.com/eric.miranda/mydb/v2/src/util"
 )
 
 type Nob struct {
@@ -67,7 +65,9 @@ func (nob *Nob) mergeCompact() {
 
 	compactedFileWritePath := path.Join(nob.rootDir, "compacted_file")
 	compactedFile, err := os.Create(compactedFileWritePath)
-	util.Ce(err)
+	if err != nil {
+		log.Fatalln(err)
+	}
 
 	for k, v := range compactedMap {
 		_, _ = io.WriteString(compactedFile, fmt.Sprintf("%v %v\n", k, v))
@@ -76,6 +76,14 @@ func (nob *Nob) mergeCompact() {
 	//	todo(): writeFile(indexOf(compactedMap))
 	compactedIndx := getIndexFrom(compactedFile)
 	writeSegmentIndex(nob.rootDir, "compacted", compactedIndx)
+
+	// delete files
+	for _, oldSeg := range orderedFileNames {
+		err = os.Remove(oldSeg)
+		if err != nil {
+			log.Fatalln(err)
+		}
+	}
 }
 
 func (nob *Nob) getOrderedSegFiles() []string {
@@ -190,7 +198,9 @@ func (nob *Nob) persist(key string, val string) int64 {
 
 func (nob *Nob) updateOffset(key string, wrote int64) int64 {
 	dbStat, err := nob.dbfile.Stat()
-	util.Ce(err)
+	if err != nil {
+		log.Fatalln(err)
+	}
 	latestOffset := dbStat.Size() - wrote
 	nob.indx[key] = latestOffset
 	return latestOffset

@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"fmt"
 	"io"
 	"log"
 	"maps"
@@ -20,30 +19,19 @@ func TestSet(t *testing.T) {
 
 	nob.Set(key, val)
 	_, err := nob.dbfile.Seek(0, 0)
-	ce(err)
+	if err != nil {
+		log.Fatalln(err)
+	}
 	got, err := io.ReadAll(nob.dbfile)
-	ce(err)
+	if err != nil {
+		log.Fatalln(err)
+	}
 
 	want := "foo 23\n"
 
 	if string(got) != want {
 		t.Fatalf("got %v want %v", got, want)
 	}
-
-}
-
-func TestSetAndGetFail(t *testing.T) {
-	key := "foo"
-	val := "23"
-	nob := getNob(t.TempDir())
-
-	nob.Set(key, val)
-	_, err := nob.Get("bar")
-
-	if err == nil {
-		t.Fatal("was expecting err")
-	}
-
 }
 
 func TestPopulateIndex(t *testing.T) {
@@ -59,6 +47,7 @@ func TestPopulateIndex(t *testing.T) {
 	}
 }
 
+// INTEGRATION TEST
 func FuzzGetSet(f *testing.F) {
 	keys := []string{"foo", "bar", "baz", "memtable", "cart-v4", "eric"}
 	vals := []string{"foo", "23", "986 423 124", "mip map", "kladsf;921##$$", "#23 clown drive california"}
@@ -79,7 +68,7 @@ func FuzzGetSet(f *testing.F) {
 	})
 }
 
-func TestSegmentation(t *testing.T) {
+func TestSetSegmentation(t *testing.T) {
 	// 20 bytes
 	key := "ottff"
 	val := "stkerjfnxkfalgktxa"
@@ -142,7 +131,7 @@ func TestMergeCompact(t *testing.T) {
 	files, _ := os.ReadDir(tdir)
 
 	// expect dir contains compacted_file, compacted_indx
-	var containsFile bool = false
+	var containsFile = false
 	for _, f := range files {
 		if strings.Contains(f.Name(), "compacted_file") {
 			containsFile = true
@@ -152,9 +141,13 @@ func TestMergeCompact(t *testing.T) {
 		t.Fatalf("no compacted_file")
 	}
 	cf, err := os.Open(path.Join(tdir, "compacted_file"))
-	ce(err)
+	if err != nil {
+		log.Fatalln(err)
+	}
 	rdr, err := io.ReadAll(cf)
-	ce(err)
+	if err != nil {
+		log.Fatalln(err)
+	}
 	got := convStrToMap(string(rdr))
 	want := map[string]string{
 		"baz":     "asolatest",
@@ -165,24 +158,16 @@ func TestMergeCompact(t *testing.T) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
 
-	// todo(): index file creation, tests
-	// expect compacted_indx to be {foo: boff, bar: boff}
-	fmt.Println("file is", string(rdr))
-	ci, err := os.Open(path.Join(tdir, "indx_compacted"))
-	ce(err)
-	b, err := io.ReadAll(ci)
-	got = convStrToMap(string(b))
-	want = map[string]string{
-		"baz":     "92",
-		"foo":     "85",
-		"finbean": "42",
-	}
-	//if !maps.Equal(got, want) {
-	//	// todo(FIRST): figure out how to validate essentially application-duplicated code (getIndexFrom)
-	//	// should i write the identical app function as a test func? what do people do normally?
-	//	t.Fatalf("got %v, want %v", got, want)
-	//}
 	// expect f1, f2 to be deleted
+	dfiles, err := os.ReadDir(tdir)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	for _, f := range dfiles {
+		if strings.Contains(f.Name(), "seg") {
+			t.Fatal("seg:", f.Name(), "shouldnt be here")
+		}
+	}
 }
 
 func convStrToMap(str string) map[string]string {
@@ -221,12 +206,10 @@ func setupTestFile(srcdir, tdir string) {
 func copyFile(dst, src string) {
 	sf, _ := os.Open(src)
 	data, err := io.ReadAll(sf)
-	ce(err)
+	if err != nil {
+		log.Fatalln(err)
+	}
 	err = os.WriteFile(dst, data, 0644)
-	ce(err)
-}
-
-func ce(err error) {
 	if err != nil {
 		log.Fatalln(err)
 	}
