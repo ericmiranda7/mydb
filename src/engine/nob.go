@@ -15,13 +15,14 @@ import (
 )
 
 type Nob struct {
-	dbfile  *os.File
-	indx    map[string]int64
-	rootDir string
+	dbfile      *os.File
+	indx        map[string]int64
+	rootDir     string
+	segmentSize int64
 }
 
 func NewNob(dbfile *os.File, rootDir string) *Nob {
-	n := Nob{dbfile: dbfile, indx: nil, rootDir: rootDir}
+	n := Nob{dbfile: dbfile, indx: nil, rootDir: rootDir, segmentSize: 100}
 	n.indx = getIndexFrom(dbfile)
 	ticker := time.NewTicker(time.Second * 10)
 	go func() {
@@ -41,7 +42,7 @@ func (nob *Nob) Set(key string, val string) {
 
 	latestOffset := nob.updateOffset(key, wrote)
 
-	if latestOffset >= 100 {
+	if latestOffset >= nob.segmentSize {
 		// write segment to disk
 		nob.createSegment()
 	}
