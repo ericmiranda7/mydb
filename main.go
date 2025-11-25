@@ -15,7 +15,7 @@ import (
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
-	rootDir := "."
+	rootDir := "./output"
 	for _, kv := range os.Environ() {
 		kva := strings.Split(kv, "=")
 

@@ -1,0 +1,19 @@
+### GET request to example server
+POST http://localhost:8090/set/loco
+Content-Type: text/plain
+
+caitanlakdkerfxkvladsf;kajsdf
+
+###
+
+POST http://localhost:8090/set/jeff
+Content-Type: text/plain
+
+beezo
+
+###
+
+POST http://localhost:8090/set/arnold
+Content-Type: text/plain
+
+shwazi

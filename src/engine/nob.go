@@ -19,10 +19,11 @@ type Nob struct {
 	indx        map[string]int64
 	rootDir     string
 	segmentSize int64
+	segNo       int
 }
 
 func NewNob(dbfile *os.File, rootDir string) *Nob {
-	n := Nob{dbfile: dbfile, indx: nil, rootDir: rootDir, segmentSize: 100}
+	n := Nob{dbfile: dbfile, indx: nil, rootDir: rootDir, segmentSize: 100, segNo: 0}
 	n.indx = getIndexFrom(dbfile)
 	ticker := time.NewTicker(time.Second * 10)
 	go func() {
@@ -70,11 +71,15 @@ func (nob *Nob) mergeCompact() {
 		of, _ := os.Open(f)
 		files = append(files, of)
 	}
-	compactedMap := nob.compact(files...)
+	compactedMap, ok := nob.compact(files...)
+	if !ok {
+		log.Println("no files to compact")
+		return
+	}
 
-	// todo(): runtimestamped compacted_file
-
-	compactedFileWritePath := path.Join(nob.rootDir, "compacted_file")
+	nob.segNo = 0
+	compctFileName := fmt.Sprintf("compacted_%v", nob.allocateSeg())
+	compactedFileWritePath := path.Join(nob.rootDir, compctFileName)
 	compactedFile, err := os.Create(compactedFileWritePath)
 	if err != nil {
 		log.Fatalln(err)
@@ -84,13 +89,16 @@ func (nob *Nob) mergeCompact() {
 		_, _ = io.WriteString(compactedFile, fmt.Sprintf("%v %v\n", k, v))
 	}
 
-	//	todo(): writeFile(indexOf(compactedMap))
 	compactedIndx := getIndexFrom(compactedFile)
-	writeSegmentIndex(nob.rootDir, "compacted", compactedIndx)
+	nob.writeSegmentIndex(fmt.Sprintf("indx_%v", compctFileName), compactedIndx)
 
 	// delete files
 	for _, oldSeg := range orderedFileNames {
 		err = os.Remove(oldSeg)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		err = os.Remove(fmt.Sprintf("indx_%v", oldSeg))
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -112,7 +120,11 @@ func (nob *Nob) getOrderedSegFiles() []string {
 	return res
 }
 
-func (nob *Nob) compact(files ...*os.File) map[string]string {
+// compact returns false if no segment files exist
+func (nob *Nob) compact(files ...*os.File) (map[string]string, bool) {
+	if len(files) == 0 {
+		return nil, false
+	}
 	res := map[string]string{}
 
 	for _, f := range files {
@@ -124,39 +136,37 @@ func (nob *Nob) compact(files ...*os.File) map[string]string {
 		}
 	}
 
-	return res
+	return res, true
 }
 
 func (nob *Nob) createSegment() {
 	// write out old log
-	nowTime := time.Now()
-	segname := fmt.Sprintf("seg%v%v%v%v%v%v",
-		nowTime.Year(), int(nowTime.Month()), nowTime.Day(), nowTime.Hour(), nowTime.Minute(), nowTime.Second())
-	newSeg, err := os.Create(path.Join(nob.rootDir, segname))
+	segname := fmt.Sprintf("seg_%v", nob.allocateSeg())
 
-	_, err = nob.dbfile.Seek(0, 0)
+	// rename dbfile to segfile
+	err := os.Rename(nob.dbfile.Name(), path.Join(nob.rootDir, segname))
 	if err != nil {
-		log.Fatalln("cant seek ", err)
-	}
-
-	_, err = io.Copy(newSeg, nob.dbfile)
-	if err != nil {
-		log.Fatalln("cant copy, ", err)
+		log.Fatalln("cant rename", err)
 	}
 
 	newDb, err := os.Create(path.Join(nob.rootDir, "db"))
 	if err != nil {
 		log.Fatalln("cant create, ", err)
 	}
-	// write to new segment
+	// start write to new segment
 	nob.dbfile = newDb
 
-	writeSegmentIndex(nob.rootDir, segname, nob.indx)
+	nob.writeSegmentIndex(segname, nob.indx)
 }
 
-func writeSegmentIndex(rootDir, segName string, indx map[string]int64) {
+func (nob *Nob) allocateSeg() int {
+	nob.segNo += 1
+	return nob.segNo
+}
+
+func (nob *Nob) writeSegmentIndex(segName string, indx map[string]int64) {
 	// write out segment index
-	ifile, err := os.Create(path.Join(rootDir, fmt.Sprintf("indx_%v", segName)))
+	ifile, err := os.Create(path.Join(nob.rootDir, fmt.Sprintf("indx_%v", segName)))
 	if err != nil {
 		log.Fatalln(err)
 	}
