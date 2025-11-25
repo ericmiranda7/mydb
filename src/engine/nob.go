@@ -10,6 +10,7 @@ import (
 	"path"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -30,8 +31,8 @@ func NewNob(dbfile *os.File, rootDir string) *Nob {
 		for {
 			select {
 			case <-ticker.C:
-				// TODO(first): why are there 2 indx files created? haw?
 				n.mergeCompact()
+				fmt.Println("compact complete")
 			}
 		}
 	}()
@@ -65,9 +66,10 @@ func (nob *Nob) Get(key string) (string, error) {
 }
 
 func (nob *Nob) mergeCompact() {
-	orderedFileNames := nob.getOrderedSegFiles()
+	orderedSegFileNames := nob.getOrderedSegFiles()
+	fmt.Println("segnames", orderedSegFileNames)
 	var files []*os.File
-	for _, f := range orderedFileNames {
+	for _, f := range orderedSegFileNames {
 		of, _ := os.Open(f)
 		files = append(files, of)
 	}
@@ -90,15 +92,15 @@ func (nob *Nob) mergeCompact() {
 	}
 
 	compactedIndx := getIndexFrom(compactedFile)
-	nob.writeSegmentIndex(fmt.Sprintf("indx_%v", compctFileName), compactedIndx)
+	nob.writeSegmentIndex(compctFileName, compactedIndx)
 
 	// delete files
-	for _, oldSeg := range orderedFileNames {
+	for _, oldSeg := range orderedSegFileNames {
 		err = os.Remove(oldSeg)
 		if err != nil {
 			log.Fatalln(err)
 		}
-		err = os.Remove(fmt.Sprintf("indx_%v", oldSeg))
+		err = os.Remove(path.Join(nob.rootDir, fmt.Sprintf("indx_%v", path.Base(oldSeg))))
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -107,9 +109,6 @@ func (nob *Nob) mergeCompact() {
 
 func (nob *Nob) getOrderedSegFiles() []string {
 	dirFiles, _ := os.ReadDir(nob.rootDir)
-	sort.Slice(dirFiles, func(i, j int) bool {
-		return dirFiles[i].Name() < dirFiles[j].Name()
-	})
 
 	var res []string
 	for _, file := range dirFiles {
@@ -117,6 +116,20 @@ func (nob *Nob) getOrderedSegFiles() []string {
 			res = append(res, path.Join(nob.rootDir, file.Name()))
 		}
 	}
+
+	sort.Slice(res, func(i, j int) bool {
+		f1name, f2name := path.Base(res[i]), path.Base(res[j])
+		fmt.Println(f1name, f2name)
+		f1no, err := strconv.Atoi(strings.Split(f1name, "_")[1])
+		if err != nil {
+			log.Fatalln(err)
+		}
+		f2no, err := strconv.Atoi(strings.Split(f2name, "_")[1])
+		if err != nil {
+			log.Fatalln(err)
+		}
+		return f1no < f2no
+	})
 	return res
 }
 
