@@ -9,11 +9,11 @@ caitanlakdkerfxkvladsf;kajsdf
 POST http://localhost:8090/set/jeff
 Content-Type: text/plain
 
-beezo
+latestplus
 
 ###
 
 POST http://localhost:8090/set/arnold
 Content-Type: text/plain
 
-shwazi
+latestplus

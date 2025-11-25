@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CopilotDiffPersistence">
+    <option name="pendingDiffs">
+      <map>
+        <entry key="$PROJECT_DIR$/make_requests.sh">
+          <value>
+            <PendingDiffInfo>
+              <option name="filePath" value="$PROJECT_DIR$/make_requests.sh" />
+              <option name="updatedContent" value="#!/bin/bash&#10;&#10;# Script to make HTTP requests 300 times&#10;# Based on the requests in http-requests/SET.http&#10;&#10;for i in {1..300}; do&#10;  echo &quot;Iteration $i of 300&quot;&#10;  &#10;  # POST request to /set/loco&#10;  curl -X POST http://localhost:8090/set/loco \&#10;    -H &quot;Content-Type: text/plain&quot; \&#10;    -d &quot;caitanlakdkerfxkvladsf;kajsdf&quot;&#10;  &#10;  # POST request to /set/jeff&#10;  curl -X POST http://localhost:8090/set/jeff \&#10;    -H &quot;Content-Type: text/plain&quot; \&#10;    -d &quot;latestjeff&quot;&#10;  &#10;  # POST request to /set/arnold&#10;  curl -X POST http://localhost:8090/set/arnold \&#10;    -H &quot;Content-Type: text/plain&quot; \&#10;    -d &quot;latestarnold&quot;&#10;  &#10;  echo &quot;&quot;&#10;done&#10;&#10;echo &quot;Completed 300 iterations&quot;&#10;" />
+            </PendingDiffInfo>
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+</project>
