@@ -67,7 +67,7 @@ func (nob *Nob) Get(key string) (string, error) {
 
 func (nob *Nob) mergeCompact() {
 	orderedSegFileNames := nob.getOrderedSegFiles()
-	fmt.Println("segnames", orderedSegFileNames)
+	log.Println("segnames", orderedSegFileNames)
 	var files []*os.File
 	for _, f := range orderedSegFileNames {
 		of, _ := os.Open(f)
@@ -86,6 +86,7 @@ func (nob *Nob) mergeCompact() {
 	if err != nil {
 		log.Fatalln(err)
 	}
+	log.Println("cf is", compactedFile.Name())
 
 	for k, v := range compactedMap {
 		_, _ = io.WriteString(compactedFile, fmt.Sprintf("%v %v\n", k, v))
@@ -119,7 +120,7 @@ func (nob *Nob) getOrderedSegFiles() []string {
 
 	sort.Slice(res, func(i, j int) bool {
 		f1name, f2name := path.Base(res[i]), path.Base(res[j])
-		fmt.Println(f1name, f2name)
+		log.Println(f1name, f2name)
 		f1no, err := strconv.Atoi(strings.Split(f1name, "_")[1])
 		if err != nil {
 			log.Fatalln(err)
@@ -189,7 +190,7 @@ func (nob *Nob) writeSegmentIndex(segName string, indx map[string]int64) {
 			log.Fatalln(err)
 		}
 	}
-	println(ifile.Name())
+	log.Println(ifile.Name())
 }
 
 func (nob *Nob) offsetOf(key string) (int64, error) {

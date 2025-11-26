@@ -12,6 +12,10 @@ import (
 	"testing"
 )
 
+func init() {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+}
+
 func TestSet(t *testing.T) {
 	key := "foo"
 	val := "23"
@@ -104,16 +108,20 @@ func TestSetSegmentation(t *testing.T) {
 }
 
 func TestCompact(t *testing.T) {
-	f1, _ := os.Open("test-data/seg1")
-	f2, _ := os.Open("test-data/seg2")
+	f1, _ := os.Open("test-data/seg_1")
+	f2, _ := os.Open("test-data/seg_2")
 	tdir := t.TempDir()
 	nob := getNob(tdir)
 
-	res := nob.compact(f1, f2)
+	res, ok := nob.compact(f1, f2)
 	exp := map[string]string{
 		"foo":     "latest",
 		"baz":     "asolatest",
 		"finbean": "82",
+	}
+
+	if !ok {
+		t.Fatalf("wanted files in dir")
 	}
 
 	if !maps.Equal(res, exp) {
@@ -131,20 +139,36 @@ func TestMergeCompact(t *testing.T) {
 	files, _ := os.ReadDir(tdir)
 
 	// expect dir contains compacted_file, compacted_indx
-	var containsFile = false
+	var containsCompactedSeg, containsCompactedIndx = false, false
+	var compactedSeg *os.File
+	//var compactedIndx *os.File
 	for _, f := range files {
-		if strings.Contains(f.Name(), "compacted_file") {
-			containsFile = true
+		matchedSeg, err := regexp.MatchString("^compacted_\\d+", f.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if matchedSeg {
+			containsCompactedSeg = true
+			compactedSeg, err = os.Open(path.Join(tdir, f.Name()))
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		matchdIndx, err := regexp.MatchString("^indx_compacted_\\d+", f.Name())
+		if matchdIndx {
+			containsCompactedIndx = true
+			//compactedIndx, err = os.Open(f.Name())
+			//if err != nil {
+			//	log.Fatalln(err)
+			//}
 		}
 	}
-	if containsFile != true {
-		t.Fatalf("no compacted_file")
+
+	if (containsCompactedSeg && containsCompactedIndx) != true {
+		t.Fatalf("no compacted file")
 	}
-	cf, err := os.Open(path.Join(tdir, "compacted_file"))
-	if err != nil {
-		log.Fatalln(err)
-	}
-	rdr, err := io.ReadAll(cf)
+
+	rdr, err := io.ReadAll(compactedSeg)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -186,7 +210,7 @@ func TestGetOrderedFiles(t *testing.T) {
 	nob := getNob(inpDir)
 
 	res := nob.getOrderedSegFiles()
-	exp := []string{path.Join(inpDir, "seg1"), path.Join(inpDir, "seg2")}
+	exp := []string{path.Join(inpDir, "seg_1"), path.Join(inpDir, "seg_2")}
 
 	if !slices.Equal(res, exp) {
 		t.Fatalf("got %v want %v", res, exp)
