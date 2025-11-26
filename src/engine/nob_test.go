@@ -8,6 +8,7 @@ import (
 	"path"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -22,6 +23,7 @@ func TestSet(t *testing.T) {
 	nob := getNob(t.TempDir())
 
 	nob.Set(key, val)
+
 	_, err := nob.dbfile.Seek(0, 0)
 	if err != nil {
 		log.Fatalln(err)
@@ -76,37 +78,37 @@ func TestSetSegmentation(t *testing.T) {
 	// 20 bytes
 	key := "ottff"
 	val := "stkerjfnxkfalgktxa"
-	dir := t.TempDir()
-	nob := getNob(dir)
+	nob := getNob(t.TempDir())
 
+	// act
 	for _ = range 5 {
 		nob.Set(key, val)
 	}
 
 	s, _ := nob.dbfile.Stat()
-
 	if s.Size() != 0 {
 		t.Fatal("should've been 0")
 	}
 
-	dirs, err := os.ReadDir(dir)
+	dirs, err := os.ReadDir(nob.rootDir)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	c := 0
+	var segCreated bool
 	for _, dir := range dirs {
 		rxp, _ := regexp.Compile("^seg.*")
 		if rxp.MatchString(dir.Name()) {
-			c += 1
+			segCreated = true
 		}
 	}
 
-	if c != 1 {
+	if !segCreated {
 		t.Fatal("shouldve been a segment file")
 	}
 }
 
+// todo i need?
 func TestCompact(t *testing.T) {
 	f1, _ := os.Open("test-data/seg_1")
 	f2, _ := os.Open("test-data/seg_2")
@@ -141,6 +143,7 @@ func TestMergeCompact(t *testing.T) {
 	// expect dir contains compacted_file, compacted_indx
 	var containsCompactedSeg, containsCompactedIndx = false, false
 	var compactedSeg *os.File
+	var compactedIndx *os.File
 	//var compactedIndx *os.File
 	for _, f := range files {
 		matchedSeg, err := regexp.MatchString("^compacted_\\d+", f.Name())
@@ -157,10 +160,10 @@ func TestMergeCompact(t *testing.T) {
 		matchdIndx, err := regexp.MatchString("^indx_compacted_\\d+", f.Name())
 		if matchdIndx {
 			containsCompactedIndx = true
-			//compactedIndx, err = os.Open(f.Name())
-			//if err != nil {
-			//	log.Fatalln(err)
-			//}
+			compactedIndx, err = os.Open(path.Join(nob.rootDir, f.Name()))
+			if err != nil {
+				log.Fatalln(err)
+			}
 		}
 	}
 
@@ -168,6 +171,7 @@ func TestMergeCompact(t *testing.T) {
 		t.Fatalf("no compacted file")
 	}
 
+	// expect compacted seg is correct
 	rdr, err := io.ReadAll(compactedSeg)
 	if err != nil {
 		log.Fatalln(err)
@@ -180,6 +184,33 @@ func TestMergeCompact(t *testing.T) {
 	}
 	if !maps.Equal(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
+	}
+
+	// expect compacted indx is correct
+	b, err := io.ReadAll(compactedIndx)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	got = convStrToMap(string(b))
+	for k, v := range got {
+		offst, err := strconv.Atoi(v)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = compactedSeg.Seek(int64(offst), 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		readUpto := len(k)
+		b := make([]byte, readUpto)
+		_, err = compactedSeg.Read(b)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(b) != k {
+			t.Fatal(string(b))
+		}
+
 	}
 
 	// expect f1, f2 to be deleted
