@@ -225,17 +225,6 @@ func TestMergeCompact(t *testing.T) {
 	}
 }
 
-func convStrToMap(str string) map[string]string {
-	res := map[string]string{}
-	kvs := strings.Split(strings.Trim(str, "\n"), "\n")
-	for _, kv := range kvs {
-		skv := strings.Split(kv, " ")
-		res[skv[0]] = skv[1]
-	}
-
-	return res
-}
-
 func TestGetOrderedFiles(t *testing.T) {
 	inpDir := "test-data"
 	nob := getNob(inpDir)
@@ -246,6 +235,17 @@ func TestGetOrderedFiles(t *testing.T) {
 	if !slices.Equal(res, exp) {
 		t.Fatalf("got %v want %v", res, exp)
 	}
+}
+
+func convStrToMap(str string) map[string]string {
+	res := map[string]string{}
+	kvs := strings.Split(strings.Trim(str, "\n"), "\n")
+	for _, kv := range kvs {
+		skv := strings.Split(kv, " ")
+		res[skv[0]] = skv[1]
+	}
+
+	return res
 }
 
 // test helpers
