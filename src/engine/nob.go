@@ -51,15 +51,15 @@ func (nob *Nob) Set(key string, val string) {
 }
 
 func (nob *Nob) Get(key string) (string, error) {
-	ofst, err := nob.offsetOf(key)
+	ofst, containingFile, ok := nob.getLocation(key)
+	if !ok {
+		return "", errors.New("key no exist")
+	}
+	_, err := containingFile.Seek(ofst, io.SeekStart)
 	if err != nil {
 		return "", err
 	}
-	_, err = nob.dbfile.Seek(ofst, io.SeekStart)
-	if err != nil {
-		return "", err
-	}
-	sc := bufio.NewScanner(nob.dbfile)
+	sc := bufio.NewScanner(containingFile)
 	sc.Scan()
 	line := sc.Text()
 	return line[len(key)+1:], nil
@@ -172,6 +172,7 @@ func (nob *Nob) createSegment() {
 	nob.dbfile = newDb
 
 	nob.writeSegmentIndex(segname, nob.indx)
+	nob.indx = make(map[string]int64)
 }
 
 func (nob *Nob) allocateSeg() int {
@@ -191,16 +192,57 @@ func (nob *Nob) writeSegmentIndex(segName string, indx map[string]int64) {
 			log.Fatalln(err)
 		}
 	}
-	log.Println(ifile.Name())
 }
 
-func (nob *Nob) offsetOf(key string) (int64, error) {
-	ofst, exists := nob.indx[key]
+// getLocation returns the offset, the containing segment file and whether the key exists in any file
+func (nob *Nob) getLocation(key string) (int64, *os.File, bool) {
+	offset, exists := nob.indx[key]
 	if !exists {
-		return -1, errors.New("key does not exist")
+		// get old indx seggies
+		oldIndexes := getOldIndexes(nob.rootDir)
+		// check em
+		for _, dirEntry := range oldIndexes {
+			file, err := os.Open(path.Join(nob.rootDir, dirEntry.Name()))
+			if err != nil {
+				log.Fatalln(err)
+			}
+			indx := getIndexFrom(file)
+			offset, ok := indx[key]
+			if ok {
+				fileName := strings.ReplaceAll(file.Name(), "indx_", "")
+				segfile, err := os.Open(fileName)
+				if err != nil {
+					log.Fatalln(err)
+				}
+				return offset, segfile, ok
+			}
+		}
+
+		// no old segment has it
+		return 0, nil, false
+	} else {
+		return offset, nob.dbfile, true
+	}
+}
+
+func getOldIndexes(dir string) []os.DirEntry {
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		log.Fatalln(err)
 	}
 
-	return ofst, nil
+	var res []os.DirEntry
+	for _, file := range files {
+		matched, err := regexp.MatchString("^indx", file.Name())
+		if err != nil {
+			log.Fatalln(err)
+		}
+		if matched {
+			res = append(res, file)
+		}
+	}
+
+	return res
 }
 
 func getIndexFrom(f *os.File) map[string]int64 {

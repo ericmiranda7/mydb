@@ -85,16 +85,21 @@ func TestSetSegmentation(t *testing.T) {
 		nob.Set(key, val)
 	}
 
+	// dbfile is empty
 	s, _ := nob.dbfile.Stat()
 	if s.Size() != 0 {
 		t.Fatal("should've been 0")
+	}
+
+	// indx is cleared
+	if len(nob.indx) != 0 {
+		t.Fatal("indx should be emptied")
 	}
 
 	dirs, err := os.ReadDir(nob.rootDir)
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	var segCreated bool
 	for _, dir := range dirs {
 		rxp, _ := regexp.Compile("^seg.*")
@@ -234,6 +239,31 @@ func TestGetOrderedFiles(t *testing.T) {
 
 	if !slices.Equal(res, exp) {
 		t.Fatalf("got %v want %v", res, exp)
+	}
+}
+
+func TestOldKeyFromSegment(t *testing.T) {
+	nob := getNob(t.TempDir())
+	treasureKey := "x"
+	treasureValue := "marksTheSpot"
+
+	junkKey := "junk"
+	junkValue := "values"
+
+	// plant
+	nob.Set(treasureKey, treasureValue)
+	// distract
+	for _ = range 503 {
+		nob.Set(junkKey, junkValue)
+	}
+
+	got, err := nob.Get(treasureKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got != treasureValue {
+		t.Fatalf("got %v want %v", got, treasureValue)
 	}
 }
 
