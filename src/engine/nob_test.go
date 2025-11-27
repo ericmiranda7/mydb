@@ -46,7 +46,7 @@ func TestPopulateIndex(t *testing.T) {
 	nob.Set("bar", "knob")
 	nob.Set("foo", "42")
 
-	indx := getIndexFrom(nob.dbfile)
+	indx := buildIndexOf(nob.dbfile)
 
 	if indx["foo"] != 16 || indx["bar"] != 7 {
 		t.Fatalf("got %v want %v", indx, "15,7")

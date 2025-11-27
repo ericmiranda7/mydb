@@ -6,12 +6,14 @@ caitanlakdkerfxkvladsf;kajsdf
 
 ###
 
-POST http://localhost:8090/set/jeff
+POST http://localhost:8090/set/secret
 Content-Type: text/plain
 
-latestplus
+worked
 
 ###
+
+GET http://localhost:8090/get/secret
 
 POST http://localhost:8090/set/arnold
 Content-Type: text/plain

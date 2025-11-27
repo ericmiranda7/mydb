@@ -25,8 +25,9 @@ type Nob struct {
 
 func NewNob(dbfile *os.File, rootDir string) *Nob {
 	n := Nob{dbfile: dbfile, indx: nil, rootDir: rootDir, segmentSize: 100, segNo: 0}
-	n.indx = getIndexFrom(dbfile)
-	ticker := time.NewTicker(time.Second * 10)
+	n.indx = buildIndexOf(dbfile)
+	//ticker := time.NewTicker(time.Second * 10)
+	ticker := time.NewTicker(time.Hour * 10)
 	go func() {
 		for {
 			select {
@@ -62,6 +63,7 @@ func (nob *Nob) Get(key string) (string, error) {
 	sc := bufio.NewScanner(containingFile)
 	sc.Scan()
 	line := sc.Text()
+	log.Println("lineis", line, "ofset", ofst)
 	return line[len(key)+1:], nil
 }
 
@@ -92,7 +94,7 @@ func (nob *Nob) mergeCompact() {
 		_, _ = io.WriteString(compactedFile, fmt.Sprintf("%v %v\n", k, v))
 	}
 
-	compactedIndx := getIndexFrom(compactedFile)
+	compactedIndx := buildIndexOf(compactedFile)
 	nob.writeSegmentIndex(compctFileName, compactedIndx)
 
 	// delete files
@@ -206,7 +208,8 @@ func (nob *Nob) getLocation(key string) (int64, *os.File, bool) {
 			if err != nil {
 				log.Fatalln(err)
 			}
-			indx := getIndexFrom(file)
+			log.Println("indxfile", file.Name())
+			indx := loadIndexFrom(file)
 			offset, ok := indx[key]
 			if ok {
 				fileName := strings.ReplaceAll(file.Name(), "indx_", "")
@@ -214,6 +217,7 @@ func (nob *Nob) getLocation(key string) (int64, *os.File, bool) {
 				if err != nil {
 					log.Fatalln(err)
 				}
+				log.Println("containing file:", segfile.Name(), "indx", indx)
 				return offset, segfile, ok
 			}
 		}
@@ -245,7 +249,28 @@ func getOldIndexes(dir string) []os.DirEntry {
 	return res
 }
 
-func getIndexFrom(f *os.File) map[string]int64 {
+func loadIndexFrom(f *os.File) map[string]int64 {
+	res := map[string]int64{}
+	_, err := f.Seek(0, 0)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		kvparts := strings.Split(sc.Text(), " ")
+		k, v := kvparts[0], kvparts[1]
+		i, err := strconv.Atoi(v)
+		if err != nil {
+			log.Fatalln("offset is NaN")
+		}
+		res[k] = int64(i)
+	}
+
+	return res
+}
+
+func buildIndexOf(f *os.File) map[string]int64 {
 	res := map[string]int64{}
 	_, err := f.Seek(0, io.SeekStart)
 	if err != nil {
