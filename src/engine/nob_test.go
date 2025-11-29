@@ -113,7 +113,6 @@ func TestSetSegmentation(t *testing.T) {
 	}
 }
 
-// todo i need?
 func TestCompact(t *testing.T) {
 	f1, _ := os.Open("test-data/seg_1")
 	f2, _ := os.Open("test-data/seg_2")

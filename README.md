@@ -10,7 +10,7 @@ As I work through an implementation, I'll try to list out the pros & cons of the
 Computer science is all about tradeoffs and this becomes very evident when by trying to solve a con,
 we introduce a bunch more!
 
-> Note: I ignore a lot of details, such as concurrent writes, complex key-value data, etc. to focus
+> Note: I ignore a lot of details, such as concurrent writes, complex key-value data, reading while merging, etc. to focus
 > on the broader algorithmic ideas
 
 # Implementations
@@ -62,7 +62,7 @@ into 1, allowing for compaction across segments, aka merging.
 6. [ ] Unable to make range queries efficiently (give me all keys / values between 'apple' and 'bat')
 
 
-### TODO(): SSTable Format
+### SSTables
 Let's solve con 5 & 6, using an SSTable!
 Simply put, an SSTable is a logfile with key-values sorted by the key. This provides a few benefits
 1. Since the keys are sorted, we can use a mergesort type of algorithm while merging & compacting. In the previous

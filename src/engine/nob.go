@@ -155,7 +155,6 @@ func (nob *Nob) compact(files ...*os.File) (map[string]string, bool) {
 	return res, true
 }
 
-// todo(first): actually read from them lolz
 func (nob *Nob) createSegment() {
 	// write out old log
 	segname := fmt.Sprintf("seg_%v", nob.allocateSeg())
