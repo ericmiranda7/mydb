@@ -1,0 +1,70 @@
+package util
+
+type TreeMap struct {
+	root *TreeNode
+}
+
+type TreeNode struct {
+	key   string
+	value string
+	left  *TreeNode
+	right *TreeNode
+}
+
+type Entry struct {
+	key   string
+	value string
+}
+
+func (tm *TreeMap) Insert(key, value string) {
+	tm.root = insert(tm.root, key, value)
+}
+
+func insert(root *TreeNode, key, value string) *TreeNode {
+	if root == nil || root.key == key {
+		return &TreeNode{
+			key:   key,
+			value: value,
+			left:  nil,
+			right: nil,
+		}
+	}
+
+	if key < root.key {
+		root.left = insert(root.left, key, value)
+	} else {
+		root.right = insert(root.right, key, value)
+	}
+	return root
+}
+
+func (tm *TreeMap) Get(key string) string {
+	return get(tm.root, key)
+}
+
+func get(root *TreeNode, key string) string {
+	// ensuring via input no non-existent key :p
+	if root.key == key {
+		return root.value
+	} else if key < root.key {
+		return get(root.left, key)
+	} else {
+		return get(root.right, key)
+	}
+}
+
+func (tm *TreeMap) GetInorder() []Entry {
+	var res []Entry
+	inorder(tm.root, &res)
+	return res
+}
+
+func inorder(root *TreeNode, res *[]Entry) {
+	if root == nil {
+		return
+	}
+
+	inorder(root.left, res)
+	*res = append(*res, Entry{key: root.key, value: root.value})
+	inorder(root.right, res)
+}
