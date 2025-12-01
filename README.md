@@ -65,10 +65,61 @@ into 1, allowing for compaction across segments, aka merging.
 ### SSTables
 Let's solve con 5 & 6, using an SSTable!
 Simply put, an SSTable is a logfile with key-values sorted by the key. This provides a few benefits
-1. Since the keys are sorted, we can use a mergesort type of algorithm while merging & compacting. In the previous
+Since the keys are sorted,
+1. We can use a mergesort type of algorithm while merging & compacting. In the previous
 approach, since we didn't know whether the incoming key was the latest one or not, we needed to maintain an index in memory.
 Everytime we saw that key, we simply overwrote it. However, if the case where the number of unique keys > greater
 than available RAM, we're stuck. SSTables allow us to look at only the first entry in all the segments to know
 which key is the latest (newest segment wins). This allows us to bring down our space complexity from O(N) to O(1)!!
+2. We can maintain a sparse index (every key doesn't need an entry, we can get an approximation & then search
+linearly), reducing memory requirements.
+3. Since keys are sorted, compression algorithms can take advantage of the data locality!
 
-[^1]: The book is extremely well written, I am just smooth brained.
+#### working notes
+inmemory:
+    1. treemap in memory (memtable)
+disk:
+    sstable: created by flush(treemap)
+    sparse index: while writing sstable, if offset > x; add key to sparse index
+
+
+
+
+wohoo! well we just built a discount, mom-i-want-a-performant-ordered-key-value-storage-engine-mom-we-have-one-at-home
+[rocksDB](), [levelDB]()!
+
+[^1]: The book is extremely well-written, I am just well-unread
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

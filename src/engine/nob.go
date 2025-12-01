@@ -82,6 +82,8 @@ func (nob *Nob) mergeCompact() {
 	}
 
 	nob.segNo = 0
+	// todo(bug): using seg number will rewrite compacted files when its reset
+	// can look into level / size-tiered compaction
 	compctFileName := fmt.Sprintf("compacted_%v", nob.allocateSeg())
 	compactedFileWritePath := path.Join(nob.rootDir, compctFileName)
 	compactedFile, err := os.Create(compactedFileWritePath)
