@@ -2,7 +2,6 @@ package engine
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -13,19 +12,23 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"git.target.com/eric.miranda/mydb/v2/src/util"
 )
 
 type Nob struct {
 	dbfile      *os.File
-	indx        map[string]int64
+	memtable    *util.TreeMap
 	rootDir     string
 	segmentSize int64
 	segNo       int
 }
 
 func NewNob(dbfile *os.File, rootDir string) *Nob {
-	n := Nob{dbfile: dbfile, indx: nil, rootDir: rootDir, segmentSize: 100, segNo: 0}
-	n.indx = buildIndexOf(dbfile)
+	n := Nob{dbfile: dbfile, memtable: nil, rootDir: rootDir, segmentSize: 100, segNo: 0}
+	// todo(): build
+	//n.memtable = buildIndexOf(dbfile)
+	n.memtable = util.NewTreeMap()
 	//ticker := time.NewTicker(time.Second * 10)
 	ticker := time.NewTicker(time.Hour * 10)
 	go func() {
@@ -41,30 +44,24 @@ func NewNob(dbfile *os.File, rootDir string) *Nob {
 }
 
 func (nob *Nob) Set(key string, val string) {
-	wrote := nob.persist(key, val)
-
-	latestOffset := nob.updateOffset(key, wrote)
-
-	if latestOffset >= nob.segmentSize {
-		// write segment to disk
+	// todo() insert into treemap
+	nob.memtable.Insert(key, val)
+	// todo() check treemap size
+	if nob.memtable.GetSize() > 150 {
 		nob.createSegment()
 	}
+	// todo() create seg
 }
 
 func (nob *Nob) Get(key string) (string, error) {
-	ofst, containingFile, ok := nob.getLocation(key)
-	if !ok {
-		return "", errors.New("key no exist")
+	// todo() check memtable
+	val, exists := nob.memtable.Get(key)
+	if exists {
+		return val, nil
 	}
-	_, err := containingFile.Seek(ofst, io.SeekStart)
-	if err != nil {
-		return "", err
-	}
-	sc := bufio.NewScanner(containingFile)
-	sc.Scan()
-	line := sc.Text()
-	log.Println("lineis", line, "ofset", ofst)
-	return line[len(key)+1:], nil
+
+	// todo() check seg-1
+	return "", nil
 }
 
 func (nob *Nob) mergeCompact() {
@@ -174,8 +171,8 @@ func (nob *Nob) createSegment() {
 	// start write to new segment
 	nob.dbfile = newDb
 
-	nob.writeSegmentIndex(segname, nob.indx)
-	nob.indx = make(map[string]int64)
+	//nob.writeSegmentIndex(segname, nob.memtable)
+	//nob.memtable = util.NewTreeMap()
 }
 
 func (nob *Nob) allocateSeg() int {
@@ -198,37 +195,37 @@ func (nob *Nob) writeSegmentIndex(segName string, indx map[string]int64) {
 }
 
 // getLocation returns the offset, the containing segment file and whether the key exists in any file
-func (nob *Nob) getLocation(key string) (int64, *os.File, bool) {
-	offset, exists := nob.indx[key]
-	if !exists {
-		// get old indx seggies
-		oldIndexes := getOldIndexes(nob.rootDir)
-		// check em
-		for _, dirEntry := range oldIndexes {
-			file, err := os.Open(path.Join(nob.rootDir, dirEntry.Name()))
-			if err != nil {
-				log.Fatalln(err)
-			}
-			log.Println("indxfile", file.Name())
-			indx := loadIndexFrom(file)
-			offset, ok := indx[key]
-			if ok {
-				fileName := strings.ReplaceAll(file.Name(), "indx_", "")
-				segfile, err := os.Open(fileName)
-				if err != nil {
-					log.Fatalln(err)
-				}
-				log.Println("containing file:", segfile.Name(), "indx", indx)
-				return offset, segfile, ok
-			}
-		}
-
-		// no old segment has it
-		return 0, nil, false
-	} else {
-		return offset, nob.dbfile, true
-	}
-}
+//func (nob *Nob) getLocation(key string) (int64, *os.File, bool) {
+//	offset, exists := nob.memtable[key]
+//	if !exists {
+//		// get old memtable seggies
+//		oldIndexes := getOldIndexes(nob.rootDir)
+//		// check em
+//		for _, dirEntry := range oldIndexes {
+//			file, err := os.Open(path.Join(nob.rootDir, dirEntry.Name()))
+//			if err != nil {
+//				log.Fatalln(err)
+//			}
+//			log.Println("indxfile", file.Name())
+//			indx := loadIndexFrom(file)
+//			offset, ok := indx[key]
+//			if ok {
+//				fileName := strings.ReplaceAll(file.Name(), "indx_", "")
+//				segfile, err := os.Open(fileName)
+//				if err != nil {
+//					log.Fatalln(err)
+//				}
+//				log.Println("containing file:", segfile.Name(), "memtable", indx)
+//				return offset, segfile, ok
+//			}
+//		}
+//
+//		// no old segment has it
+//		return 0, nil, false
+//	} else {
+//		return offset, nob.dbfile, true
+//	}
+//}
 
 func getOldIndexes(dir string) []os.DirEntry {
 	files, err := os.ReadDir(dir)
@@ -238,7 +235,7 @@ func getOldIndexes(dir string) []os.DirEntry {
 
 	var res []os.DirEntry
 	for _, file := range files {
-		matched, err := regexp.MatchString("^indx", file.Name())
+		matched, err := regexp.MatchString("^memtable", file.Name())
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -300,12 +297,12 @@ func (nob *Nob) persist(key string, val string) int64 {
 	return int64(written)
 }
 
-func (nob *Nob) updateOffset(key string, wrote int64) int64 {
-	dbStat, err := nob.dbfile.Stat()
-	if err != nil {
-		log.Fatalln(err)
-	}
-	latestOffset := dbStat.Size() - wrote
-	nob.indx[key] = latestOffset
-	return latestOffset
-}
+//func (nob *Nob) updateOffset(key string, wrote int64) int64 {
+//	dbStat, err := nob.dbfile.Stat()
+//	if err != nil {
+//		log.Fatalln(err)
+//	}
+//	latestOffset := dbStat.Size() - wrote
+//	nob.memtable[key] = latestOffset
+//	return latestOffset
+//}

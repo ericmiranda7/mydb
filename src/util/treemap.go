@@ -2,6 +2,7 @@ package util
 
 type TreeMap struct {
 	root *TreeNode
+	size int
 }
 
 type TreeNode struct {
@@ -16,8 +17,13 @@ type Entry struct {
 	value string
 }
 
+func NewTreeMap() *TreeMap {
+	return &TreeMap{root: nil}
+}
+
 func (tm *TreeMap) Insert(key, value string) {
 	tm.root = insert(tm.root, key, value)
+	tm.size += len(key) + len(value)
 }
 
 func insert(root *TreeNode, key, value string) *TreeNode {
@@ -38,14 +44,16 @@ func insert(root *TreeNode, key, value string) *TreeNode {
 	return root
 }
 
-func (tm *TreeMap) Get(key string) string {
+func (tm *TreeMap) Get(key string) (string, bool) {
 	return get(tm.root, key)
 }
 
-func get(root *TreeNode, key string) string {
-	// ensuring via input no non-existent key :p
+func get(root *TreeNode, key string) (string, bool) {
+	if root == nil {
+		return "", false
+	}
 	if root.key == key {
-		return root.value
+		return root.value, true
 	} else if key < root.key {
 		return get(root.left, key)
 	} else {
@@ -67,4 +75,8 @@ func inorder(root *TreeNode, res *[]Entry) {
 	inorder(root.left, res)
 	*res = append(*res, Entry{key: root.key, value: root.value})
 	inorder(root.right, res)
+}
+
+func (tm *TreeMap) GetSize() int {
+	return tm.size
 }
