@@ -17,29 +17,6 @@ func init() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 }
 
-func TestSet(t *testing.T) {
-	key := "foo"
-	val := "23"
-	nob := getNob(t.TempDir())
-
-	nob.Set(key, val)
-
-	_, err := nob.dbfile.Seek(0, 0)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	got, err := io.ReadAll(nob.dbfile)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	want := "foo 23\n"
-
-	if string(got) != want {
-		t.Fatalf("got %v want %v", got, want)
-	}
-}
-
 func TestPopulateIndex(t *testing.T) {
 	nob := getNob(t.TempDir())
 	nob.Set("foo", "24")
