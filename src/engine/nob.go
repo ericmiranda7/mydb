@@ -180,6 +180,8 @@ func (nob *Nob) createSegment() {
 	}
 
 	// write to indx
+	// todo(FIRST): sparsify indx
+	// do it on every x bytes OR
 	indxfile, err := os.Create(path.Join(nob.rootDir, fmt.Sprintf("indx_%v", segname)))
 	defer func(indxfile *os.File) {
 		err := indxfile.Close()
