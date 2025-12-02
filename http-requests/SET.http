@@ -2,19 +2,18 @@
 POST http://localhost:8090/set/loco
 Content-Type: text/plain
 
-caitanlakdkerfxkvladsf;kajsdf
+caitanlakdkerfxkvladsf;kajsdfa
 
-###
-
+### set anothersecret
 POST http://localhost:8090/set/anothersecret
 Content-Type: text/plain
 
 worked
 
 ###
+GET http://localhost:8090/get/loco
 
-GET http://localhost:8090/get/anothersecret
-
+###
 POST http://localhost:8090/set/arnold
 Content-Type: text/plain
 

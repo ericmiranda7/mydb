@@ -27,19 +27,19 @@ func (tm *TreeMap) Insert(key, value string) {
 }
 
 func insert(root *TreeNode, key, value string) *TreeNode {
-	if root == nil || root.key == key {
+	if root == nil {
 		return &TreeNode{
 			key:   key,
 			value: value,
-			left:  nil,
-			right: nil,
 		}
 	}
 
 	if key < root.key {
 		root.left = insert(root.left, key, value)
-	} else {
+	} else if key > root.key {
 		root.right = insert(root.right, key, value)
+	} else {
+		root.value = value
 	}
 	return root
 }

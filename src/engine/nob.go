@@ -2,6 +2,7 @@ package engine
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -43,24 +44,21 @@ func NewNob(rootDir string) *Nob {
 }
 
 func (nob *Nob) Set(key string, val string) {
-	// todo() insert into treemap
 	nob.memtable.Insert(key, val)
-	// todo() check treemap size
 	if nob.memtable.GetSize() > 150 {
 		nob.createSegment()
 	}
-	// todo() create seg
 }
 
 func (nob *Nob) Get(key string) (string, error) {
-	// todo() check memtable
 	val, exists := nob.memtable.Get(key)
 	if exists {
 		return val, nil
 	}
 
 	// todo() check seg-1
-	return "", nil
+
+	return "", errors.New("nokey")
 }
 
 func (nob *Nob) mergeCompact() {
@@ -171,13 +169,14 @@ func (nob *Nob) createSegment() {
 
 	segmentIndx := map[string]int64{}
 	orderedKv := nob.memtable.GetInorder()
+	log.Println(orderedKv)
 	for _, kv := range orderedKv {
-		_, err = segfile.WriteString(fmt.Sprintf("%v %v", kv.Key, kv.Value))
 		offset, err := segfile.Seek(0, io.SeekCurrent)
+		segmentIndx[kv.Key] = offset
+		_, err = segfile.WriteString(fmt.Sprintf("%v %v\n", kv.Key, kv.Value))
 		if err != nil {
 			log.Fatalln(err)
 		}
-		segmentIndx[kv.Key] = offset
 	}
 
 	// write to indx
@@ -193,7 +192,7 @@ func (nob *Nob) createSegment() {
 	}
 
 	for k, v := range segmentIndx {
-		_, err = indxfile.WriteString(fmt.Sprintf("%v %v", k, v))
+		_, err = indxfile.WriteString(fmt.Sprintf("%v %v\n", k, v))
 		if err != nil {
 			log.Fatalln(err)
 		}
