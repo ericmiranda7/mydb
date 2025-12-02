@@ -17,15 +17,14 @@ import (
 )
 
 type Nob struct {
-	dbfile      *os.File
 	memtable    *util.TreeMap
 	rootDir     string
 	segmentSize int64
 	segNo       int
 }
 
-func NewNob(dbfile *os.File, rootDir string) *Nob {
-	n := Nob{dbfile: dbfile, memtable: nil, rootDir: rootDir, segmentSize: 100, segNo: 0}
+func NewNob(rootDir string) *Nob {
+	n := Nob{memtable: nil, rootDir: rootDir, segmentSize: 100, segNo: 0}
 	// todo(): build
 	//n.memtable = buildIndexOf(dbfile)
 	n.memtable = util.NewTreeMap()
@@ -155,24 +154,53 @@ func (nob *Nob) compact(files ...*os.File) (map[string]string, bool) {
 }
 
 func (nob *Nob) createSegment() {
-	// write out old log
+	// get segname
 	segname := fmt.Sprintf("seg_%v", nob.allocateSeg())
 
-	// rename dbfile to segfile
-	err := os.Rename(nob.dbfile.Name(), path.Join(nob.rootDir, segname))
+	// write to segment
+	segfile, err := os.Create(path.Join(nob.rootDir, segname))
+	defer func(segfile *os.File) {
+		err := segfile.Close()
+		if err != nil {
+			log.Fatalln(err)
+		}
+	}(segfile)
 	if err != nil {
-		log.Fatalln("cant rename", err)
+		log.Fatalln(err)
 	}
 
-	newDb, err := os.Create(path.Join(nob.rootDir, "db"))
-	if err != nil {
-		log.Fatalln("cant create, ", err)
+	segmentIndx := map[string]int64{}
+	orderedKv := nob.memtable.GetInorder()
+	for _, kv := range orderedKv {
+		_, err = segfile.WriteString(fmt.Sprintf("%v %v", kv.Key, kv.Value))
+		offset, err := segfile.Seek(0, io.SeekCurrent)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		segmentIndx[kv.Key] = offset
 	}
-	// start write to new segment
-	nob.dbfile = newDb
 
-	//nob.writeSegmentIndex(segname, nob.memtable)
-	//nob.memtable = util.NewTreeMap()
+	// write to indx
+	indxfile, err := os.Create(path.Join(nob.rootDir, fmt.Sprintf("indx_%v", segname)))
+	defer func(indxfile *os.File) {
+		err := indxfile.Close()
+		if err != nil {
+			log.Fatalln()
+		}
+	}(indxfile)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	for k, v := range segmentIndx {
+		_, err = indxfile.WriteString(fmt.Sprintf("%v %v", k, v))
+		if err != nil {
+			log.Fatalln(err)
+		}
+	}
+
+	// start write to new memtable
+	nob.memtable = util.NewTreeMap()
 }
 
 func (nob *Nob) allocateSeg() int {
@@ -285,16 +313,6 @@ func buildIndexOf(f *os.File) map[string]int64 {
 		offset += int64(len(line) + 1)
 	}
 	return res
-}
-
-func (nob *Nob) persist(key string, val string) int64 {
-	line := key + " " + val + "\n"
-	written, err := nob.dbfile.Write([]byte(line))
-	if err != nil {
-		log.Fatalln("brew", err)
-	}
-
-	return int64(written)
 }
 
 //func (nob *Nob) updateOffset(key string, wrote int64) int64 {

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path"
 	"strings"
 
 	"git.target.com/eric.miranda/mydb/v2/src/engine"
@@ -23,11 +22,7 @@ func main() {
 			rootDir = kva[1]
 		}
 	}
-	dbfile, err := os.OpenFile(path.Join(rootDir, "db"), os.O_CREATE|os.O_APPEND|os.O_RDWR, 0646)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	nob := engine.NewNob(dbfile, rootDir)
+	nob := engine.NewNob(rootDir)
 
 	cmd := os.Args[1]
 	switch cmd {

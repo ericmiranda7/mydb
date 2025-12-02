@@ -13,8 +13,8 @@ type TreeNode struct {
 }
 
 type Entry struct {
-	key   string
-	value string
+	Key   string
+	Value string
 }
 
 func NewTreeMap() *TreeMap {
@@ -73,7 +73,7 @@ func inorder(root *TreeNode, res *[]Entry) {
 	}
 
 	inorder(root.left, res)
-	*res = append(*res, Entry{key: root.key, value: root.value})
+	*res = append(*res, Entry{Key: root.key, Value: root.value})
 	inorder(root.right, res)
 }
 
