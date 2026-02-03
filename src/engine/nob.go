@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -22,10 +23,11 @@ type Nob struct {
 	rootDir     string
 	segmentSize int64
 	segNo       int
+	blockSize int64
 }
 
 func NewNob(rootDir string) *Nob {
-	n := Nob{memtable: nil, rootDir: rootDir, segmentSize: 100, segNo: 0}
+	n := Nob{memtable: nil, rootDir: rootDir, segmentSize: 100, segNo: 0, blockSize: 10}
 	// todo(): build
 	//n.memtable = buildIndexOf(dbfile)
 	n.memtable = util.NewTreeMap()
@@ -57,7 +59,7 @@ func (nob *Nob) Get(key string) (string, error) {
 		return val, nil
 	}
 
-	// todo() check seg-1
+	// todo(FIRST) check seg-1
 
 	return "", errors.New("nokey")
 }
@@ -173,11 +175,25 @@ func (nob *Nob) createSegment() {
 		log.Fatalln(err)
 	}
 
-	segIndx := map[string]int64{}
+	nob.createSparseIndx(segFile)
+
+	// start write to new memtable
+	nob.memtable = util.NewTreeMap()
+}
+
+func (nob *Nob) createSparseIndx(segFile *os.File) {
+	sparseIndx := map[string]int64{}
 	orderedKv := nob.memtable.GetInorder()
+	currentBlock := int64(0)
 	for _, kv := range orderedKv {
 		offset, err := segFile.Seek(0, io.SeekCurrent)
-		segIndx[kv.Key] = offset
+		if err != nil {
+			log.Fatalln(err)
+		}
+		if offset / nob.blockSize > currentBlock {
+			sparseIndx[kv.Key] = offset
+			currentBlock = offset
+		}
 		_, err = segFile.WriteString(fmt.Sprintf("%v %v\n", kv.Key, kv.Value))
 		if err != nil {
 			log.Fatalln(err)
@@ -185,9 +201,7 @@ func (nob *Nob) createSegment() {
 	}
 
 	// write to indx
-	// todo(FIRST): sparsify indx
-	// do it on every x bytes OR
-	indxFile, err := os.Create(path.Join(nob.rootDir, fmt.Sprintf("indx_%v", segName)))
+	sparseIndxFile, err := os.Create(path.Join(nob.rootDir, fmt.Sprintf("indx_%v", filepath.Base(segFile.Name()))))
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -196,17 +210,14 @@ func (nob *Nob) createSegment() {
 		if err != nil {
 			log.Fatalln()
 		}
-	}(indxFile)
+	}(sparseIndxFile)
 
-	for k, v := range segIndx {
-		_, err = indxFile.WriteString(fmt.Sprintf("%v %v\n", k, v))
+	for k, v := range sparseIndx {
+		_, err = sparseIndxFile.WriteString(fmt.Sprintf("%v %v\n", k, v))
 		if err != nil {
 			log.Fatalln(err)
 		}
 	}
-
-	// start write to new memtable
-	nob.memtable = util.NewTreeMap()
 }
 
 func (nob *Nob) allocateSeg() int {
