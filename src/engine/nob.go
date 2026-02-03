@@ -35,8 +35,9 @@ func NewNob(rootDir string) *Nob {
 		for {
 			select {
 			case <-ticker.C:
+				fmt.Println("====beginning compaction====")
 				n.mergeCompact()
-				fmt.Println("compact complete")
+				fmt.Println("====compact complete====")
 			}
 		}
 	}()
@@ -64,36 +65,41 @@ func (nob *Nob) Get(key string) (string, error) {
 func (nob *Nob) mergeCompact() {
 	orderedSegFileNames := nob.getOrderedSegFiles()
 	log.Println("segnames", orderedSegFileNames)
-	var files []*os.File
+	var segFiles []*os.File
 	for _, f := range orderedSegFileNames {
 		of, _ := os.Open(f)
-		files = append(files, of)
+		segFiles = append(segFiles, of)
 	}
-	compactedMap, ok := nob.compact(files...)
+	compactedKeyValues, ok := nob.compact(segFiles...)
 	if !ok {
-		log.Println("no files to compact")
+		log.Println("no segFiles to compact")
 		return
 	}
 
 	nob.segNo = 0
-	// todo(bug): using seg number will rewrite compacted files when its reset
-	// can look into level / size-tiered compaction
-	compctFileName := fmt.Sprintf("compacted_%v", nob.allocateSeg())
-	compactedFileWritePath := path.Join(nob.rootDir, compctFileName)
-	compactedFile, err := os.Create(compactedFileWritePath)
+	// todo(bug): using seg number will rewrite compacted segFiles when its reset
+	// todo(can look into level / size-tiered compaction)
+	compactedSegName := fmt.Sprintf("compacted_%v", nob.allocateSeg())
+	compactedSegWritePath := path.Join(nob.rootDir, compactedSegName)
+	compactedSegFile, err := os.Create(compactedSegWritePath)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	log.Println("cf is", compactedFile.Name())
+	defer func(f *os.File) {
+		err := f.Close()
+		if err != nil {
+			log.Fatalln(err)
+		}
+	}(compactedSegFile)
 
-	for k, v := range compactedMap {
-		_, _ = io.WriteString(compactedFile, fmt.Sprintf("%v %v\n", k, v))
+	for k, v := range compactedKeyValues {
+		_, _ = io.WriteString(compactedSegFile, fmt.Sprintf("%v %v\n", k, v))
 	}
 
-	compactedIndx := buildIndexOf(compactedFile)
-	nob.writeSegmentIndex(compctFileName, compactedIndx)
+	compactedIndx := buildIndexOf(compactedSegFile)
+	nob.writeSegmentIndex(compactedSegName, compactedIndx)
 
-	// delete files
+	// delete segFiles
 	for _, oldSeg := range orderedSegFileNames {
 		err = os.Remove(oldSeg)
 		if err != nil {
@@ -118,7 +124,6 @@ func (nob *Nob) getOrderedSegFiles() []string {
 
 	sort.Slice(res, func(i, j int) bool {
 		f1name, f2name := path.Base(res[i]), path.Base(res[j])
-		log.Println(f1name, f2name)
 		f1no, err := strconv.Atoi(strings.Split(f1name, "_")[1])
 		if err != nil {
 			log.Fatalln(err)
@@ -137,43 +142,43 @@ func (nob *Nob) compact(files ...*os.File) (map[string]string, bool) {
 	if len(files) == 0 {
 		return nil, false
 	}
-	res := map[string]string{}
+	hashMap := map[string]string{}
 
-	for _, f := range files {
-		sc := bufio.NewScanner(f)
+	for _, file := range files {
+		sc := bufio.NewScanner(file)
 
 		for sc.Scan() {
 			kv := strings.Split(sc.Text(), " ")
-			res[kv[0]] = kv[1]
+			key, value := kv[0], kv[1]
+			hashMap[key] = value
 		}
 	}
 
-	return res, true
+	return hashMap, true
 }
 
 func (nob *Nob) createSegment() {
-	// get segname
-	segname := fmt.Sprintf("seg_%v", nob.allocateSeg())
+	// get segName
+	segName := fmt.Sprintf("seg_%v", nob.allocateSeg())
 
 	// write to segment
-	segfile, err := os.Create(path.Join(nob.rootDir, segname))
+	segFile, err := os.Create(path.Join(nob.rootDir, segName))
 	defer func(segfile *os.File) {
 		err := segfile.Close()
 		if err != nil {
 			log.Fatalln(err)
 		}
-	}(segfile)
+	}(segFile)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	segmentIndx := map[string]int64{}
+	segIndx := map[string]int64{}
 	orderedKv := nob.memtable.GetInorder()
-	log.Println(orderedKv)
 	for _, kv := range orderedKv {
-		offset, err := segfile.Seek(0, io.SeekCurrent)
-		segmentIndx[kv.Key] = offset
-		_, err = segfile.WriteString(fmt.Sprintf("%v %v\n", kv.Key, kv.Value))
+		offset, err := segFile.Seek(0, io.SeekCurrent)
+		segIndx[kv.Key] = offset
+		_, err = segFile.WriteString(fmt.Sprintf("%v %v\n", kv.Key, kv.Value))
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -182,19 +187,19 @@ func (nob *Nob) createSegment() {
 	// write to indx
 	// todo(FIRST): sparsify indx
 	// do it on every x bytes OR
-	indxfile, err := os.Create(path.Join(nob.rootDir, fmt.Sprintf("indx_%v", segname)))
-	defer func(indxfile *os.File) {
-		err := indxfile.Close()
-		if err != nil {
-			log.Fatalln()
-		}
-	}(indxfile)
+	indxFile, err := os.Create(path.Join(nob.rootDir, fmt.Sprintf("indx_%v", segName)))
 	if err != nil {
 		log.Fatalln(err)
 	}
+	defer func(indxFile *os.File) {
+		err := indxFile.Close()
+		if err != nil {
+			log.Fatalln()
+		}
+	}(indxFile)
 
-	for k, v := range segmentIndx {
-		_, err = indxfile.WriteString(fmt.Sprintf("%v %v\n", k, v))
+	for k, v := range segIndx {
+		_, err = indxFile.WriteString(fmt.Sprintf("%v %v\n", k, v))
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -211,12 +216,19 @@ func (nob *Nob) allocateSeg() int {
 
 func (nob *Nob) writeSegmentIndex(segName string, indx map[string]int64) {
 	// write out segment index
-	ifile, err := os.Create(path.Join(nob.rootDir, fmt.Sprintf("indx_%v", segName)))
+	indxFile, err := os.Create(path.Join(nob.rootDir, fmt.Sprintf("indx_%v", segName)))
 	if err != nil {
 		log.Fatalln(err)
 	}
+	defer func(f *os.File) {
+		err := f.Close()
+		if err != nil {
+			log.Fatalln(err)
+		}
+	}(indxFile)
+
 	for k, v := range indx {
-		_, err = ifile.WriteString(fmt.Sprintf("%v %v\n", k, v))
+		_, err = indxFile.WriteString(fmt.Sprintf("%v %v\n", k, v))
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -298,7 +310,7 @@ func loadIndexFrom(f *os.File) map[string]int64 {
 }
 
 func buildIndexOf(f *os.File) map[string]int64 {
-	res := map[string]int64{}
+	indx := map[string]int64{}
 	_, err := f.Seek(0, io.SeekStart)
 	if err != nil {
 		log.Fatalln(err)
@@ -310,10 +322,10 @@ func buildIndexOf(f *os.File) map[string]int64 {
 		line := sc.Text()
 
 		key := line[0:strings.Index(line, " ")]
-		res[key] = offset
+		indx[key] = offset
 		offset += int64(len(line) + 1)
 	}
-	return res
+	return indx
 }
 
 //func (nob *Nob) updateOffset(key string, wrote int64) int64 {
