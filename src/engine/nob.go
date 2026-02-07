@@ -22,12 +22,13 @@ type Nob struct {
 	memtable    *util.TreeMap
 	rootDir     string
 	segmentSize int64
-	segNo       int
-	blockSize int64
+	segNo        int
+	segFilePaths []string
+	blockSize    int64
 }
 
 func NewNob(rootDir string) *Nob {
-	n := Nob{memtable: nil, rootDir: rootDir, segmentSize: 100, segNo: 0, blockSize: 10}
+	n := Nob{memtable: nil, rootDir: rootDir, segmentSize: 100, segNo: 0, blockSize: 10, segFilePaths: []string{}}
 	// todo(): build
 	//n.memtable = buildIndexOf(dbfile)
 	n.memtable = util.NewTreeMap()
@@ -59,7 +60,16 @@ func (nob *Nob) Get(key string) (string, error) {
 		return val, nil
 	}
 
-	// todo(FIRST) check seg-1
+	for _, segFilePath := range nob.segFilePaths {
+		segFile, err := os.Open(segFilePath)
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		// todo(first)
+		// does compaction creat a compaction file and compaction sparse indx?
+		// should i then search compaction sparse indx or segment indx?
+	}
 
 	return "", errors.New("nokey")
 }
@@ -174,6 +184,8 @@ func (nob *Nob) createSegment() {
 	if err != nil {
 		log.Fatalln(err)
 	}
+
+	nob.segFilePaths = append(nob.segFilePaths, segFile.Name())
 
 	nob.createSparseIndx(segFile)
 
