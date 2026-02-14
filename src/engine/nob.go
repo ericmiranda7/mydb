@@ -18,17 +18,19 @@ import (
 	"git.target.com/eric.miranda/mydb/v2/src/util"
 )
 
+const COMPACTED_PREFIX = "^compacted"
+const SEGMENT_PREFIX = "^segment"
+
 type Nob struct {
 	memtable    *util.TreeMap
 	rootDir     string
 	segmentSize int64
-	segNo        int
-	segFilePaths []string
-	blockSize    int64
+	segNo       int
+	blockSize   int64
 }
 
 func NewNob(rootDir string) *Nob {
-	n := Nob{memtable: nil, rootDir: rootDir, segmentSize: 100, segNo: 0, blockSize: 10, segFilePaths: []string{}}
+	n := Nob{memtable: nil, rootDir: rootDir, segmentSize: 100, segNo: 0, blockSize: 10}
 	// todo(): build
 	//n.memtable = buildIndexOf(dbfile)
 	n.memtable = util.NewTreeMap()
@@ -54,28 +56,54 @@ func (nob *Nob) Set(key string, val string) {
 	}
 }
 
+// Get(key) searches in the following steps
+//
+// 1. check in memory
+//
+// 2. get segfiles / compactedfiles in order of creation
+//
+// 3. search latest, latest-1, latest-2...
 func (nob *Nob) Get(key string) (string, error) {
 	val, exists := nob.memtable.Get(key)
 	if exists {
 		return val, nil
 	}
 
-	for _, segFilePath := range nob.segFilePaths {
-		segFile, err := os.Open(segFilePath)
-		if err != nil {
-			log.Fatalln(err)
-		}
+	compactedFiles := nob.getOrderedSegFiles(COMPACTED_PREFIX, false)
+	segFiles := nob.getOrderedSegFiles(SEGMENT_PREFIX, false)
 
-		// todo(first)
-		// does compaction creat a compaction file and compaction sparse indx?
-		// should i then search compaction sparse indx or segment indx?
+	// i'm thinking if compaction ran, any existing segfile would be newer
+	val, err := nob.searchSegment(key, segFiles)
+	if err == nil {
+		return val, nil
+	}
+
+	val, err = nob.searchSegment(key, compactedFiles)
+	if err == nil {
+		return val, nil
 	}
 
 	return "", errors.New("nokey")
 }
 
+func (*Nob) searchSegment(key string, segFiles []string) (string, error) {
+	for _, segFileName := range segFiles {
+		_, err := os.Open(segFileName)
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		// todo(first)
+		// get lower offset
+		// search segFileName from loweroffset .. segFilekey[0] > key[0]
+		// if found, return
+	}
+
+	return "", errors.New("no key in segfiles found")
+}
+
 func (nob *Nob) mergeCompact() {
-	orderedSegFileNames := nob.getOrderedSegFiles()
+	orderedSegFileNames := nob.getOrderedSegFiles(SEGMENT_PREFIX, true)
 	log.Println("segnames", orderedSegFileNames)
 	var segFiles []*os.File
 	for _, f := range orderedSegFileNames {
@@ -108,8 +136,7 @@ func (nob *Nob) mergeCompact() {
 		_, _ = io.WriteString(compactedSegFile, fmt.Sprintf("%v %v\n", k, v))
 	}
 
-	compactedIndx := buildIndexOf(compactedSegFile)
-	nob.writeSegmentIndex(compactedSegName, compactedIndx)
+	nob.createFileAndSparseIndex(compactedSegFile)
 
 	// delete segFiles
 	for _, oldSeg := range orderedSegFileNames {
@@ -124,12 +151,13 @@ func (nob *Nob) mergeCompact() {
 	}
 }
 
-func (nob *Nob) getOrderedSegFiles() []string {
+// getOrderedSegFiles(pattern string, asc bool) returns absolute filepaths matching pattern sorted by asc
+func (nob *Nob) getOrderedSegFiles(pattern string, asc bool) []string {
 	dirFiles, _ := os.ReadDir(nob.rootDir)
 
 	var res []string
 	for _, file := range dirFiles {
-		if ok, _ := regexp.MatchString("^seg", file.Name()); ok {
+		if ok, _ := regexp.MatchString(pattern, file.Name()); ok {
 			res = append(res, path.Join(nob.rootDir, file.Name()))
 		}
 	}
@@ -144,7 +172,11 @@ func (nob *Nob) getOrderedSegFiles() []string {
 		if err != nil {
 			log.Fatalln(err)
 		}
-		return f1no < f2no
+		if asc {
+			return f1no < f2no
+		} else {
+			return f2no < f2no
+		}
 	})
 	return res
 }
@@ -169,6 +201,7 @@ func (nob *Nob) compact(files ...*os.File) (map[string]string, bool) {
 	return hashMap, true
 }
 
+// createSegment() creates a segment file with seg_{segNo} format
 func (nob *Nob) createSegment() {
 	// get segName
 	segName := fmt.Sprintf("seg_%v", nob.allocateSeg())
@@ -185,15 +218,14 @@ func (nob *Nob) createSegment() {
 		log.Fatalln(err)
 	}
 
-	nob.segFilePaths = append(nob.segFilePaths, segFile.Name())
-
-	nob.createSparseIndx(segFile)
+	nob.createFileAndSparseIndex(segFile)
 
 	// start write to new memtable
 	nob.memtable = util.NewTreeMap()
 }
 
-func (nob *Nob) createSparseIndx(segFile *os.File) {
+// createSparseIndx(segFile) creates an index file with indx_{segFile} format
+func (nob *Nob) createFileAndSparseIndex(segFile *os.File) {
 	sparseIndx := map[string]int64{}
 	orderedKv := nob.memtable.GetInorder()
 	currentBlock := int64(0)
@@ -202,7 +234,7 @@ func (nob *Nob) createSparseIndx(segFile *os.File) {
 		if err != nil {
 			log.Fatalln(err)
 		}
-		if offset / nob.blockSize > currentBlock {
+		if offset/nob.blockSize > currentBlock {
 			sparseIndx[kv.Key] = offset
 			currentBlock = offset
 		}
