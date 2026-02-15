@@ -206,7 +206,7 @@ func TestGetOrderedFiles(t *testing.T) {
 	inpDir := "test-data"
 	nob := getNob(inpDir)
 
-	res := nob.getOrderedSegFiles()
+	res := nob.getOrderedSegFiles("^seg", true)
 	exp := []string{path.Join(inpDir, "seg_1"), path.Join(inpDir, "seg_2")}
 
 	if !slices.Equal(res, exp) {

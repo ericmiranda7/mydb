@@ -22,6 +22,7 @@ func main() {
 			rootDir = kva[1]
 		}
 	}
+	fmt.Println("Output dir: ", rootDir)
 	nob := engine.NewNob(rootDir)
 
 	cmd := os.Args[1]

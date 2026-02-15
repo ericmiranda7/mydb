@@ -12,7 +12,7 @@ import (
 
 func run(nob *engine.Nob) {
 	http.HandleFunc("/get/", GetHandler(nob))
-	http.HandleFunc("/set/", SetHandler(nob))
+	http.HandleFunc("POST /set/", SetHandler(nob))
 
 	middlewared := LoggingMiddleware(http.DefaultServeMux)
 

@@ -19,7 +19,7 @@ import (
 )
 
 const COMPACTED_PREFIX = "^compacted"
-const SEGMENT_PREFIX = "^segment"
+const SEGMENT_PREFIX = "^seg"
 
 type Nob struct {
 	memtable    *util.TreeMap
@@ -27,6 +27,11 @@ type Nob struct {
 	segmentSize int64
 	segNo       int
 	blockSize   int64
+}
+
+type Anchor struct {
+	key    string
+	offset int64
 }
 
 func NewNob(rootDir string) *Nob {
@@ -66,40 +71,102 @@ func (nob *Nob) Set(key string, val string) {
 func (nob *Nob) Get(key string) (string, error) {
 	val, exists := nob.memtable.Get(key)
 	if exists {
+		log.Println("found key", key, "value: ", val)
 		return val, nil
 	}
 
-	compactedFiles := nob.getOrderedSegFiles(COMPACTED_PREFIX, false)
 	segFiles := nob.getOrderedSegFiles(SEGMENT_PREFIX, false)
+	log.Println("segfiles: ", segFiles)
 
 	// i'm thinking if compaction ran, any existing segfile would be newer
-	val, err := nob.searchSegment(key, segFiles)
-	if err == nil {
-		return val, nil
+	val, err := nob.searchSegments(key, segFiles)
+	if err != nil {
+		return "", errors.New("nokey")
 	}
 
-	val, err = nob.searchSegment(key, compactedFiles)
-	if err == nil {
-		return val, nil
-	}
-
-	return "", errors.New("nokey")
+	return val, nil
 }
 
-func (*Nob) searchSegment(key string, segFiles []string) (string, error) {
-	for _, segFileName := range segFiles {
-		_, err := os.Open(segFileName)
+func (nob *Nob) searchSegments(key string, segFiles []string) (string, error) {
+	for _, segFile := range segFiles {
+		// todo(first)
+		// get indx file
+		indexFile, err := os.Open(
+			path.Join(nob.rootDir, fmt.Sprintf("indx_%v", filepath.Base(segFile))),
+		)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		// get lower offset
+		segFile, err := os.Open(segFile)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		fileInfo, err := segFile.Stat()
 		if err != nil {
 			log.Fatalln(err)
 		}
 
-		// todo(first)
-		// get lower offset
-		// search segFileName from loweroffset .. segFilekey[0] > key[0]
-		// if found, return
+		lowerOffset, upperOffset := getOffsets(key, indexFile, fileInfo.Size())
+		fmt.Println("Offsets", lowerOffset, upperOffset)
+		// search segFileName from loweroffset .. upperOffset
+		val, err := searchFile(key, lowerOffset, upperOffset, segFile)
+		if err == nil {
+			return val, nil
+		}
 	}
 
 	return "", errors.New("no key in segfiles found")
+}
+
+// getOffsets() returns lowerbound & upperbound to search within
+func getOffsets(key string, indexFile *os.File, segFileSize int64) (int64, int64) {
+	// todo
+	indxSlice := loadSparseIndex(indexFile)
+	s := 0
+	e := len(indxSlice)
+
+	for s < e {
+		m := ((e - s) / 2) + s
+
+		if indxSlice[m].key > key {
+			e = m
+		} else {
+			s = m + 1
+		}
+	}
+
+	if e == 0 {
+		return 0, indxSlice[0].offset
+	} else if e == len(indxSlice) {
+		return indxSlice[e-1].offset, segFileSize
+	} else {
+		return indxSlice[e-1].offset, indxSlice[e].offset
+	}
+}
+
+func searchFile(needle string, lowerOffset, upperOffset int64, segFile *os.File) (string, error) {
+	currentOffset, err := segFile.Seek(lowerOffset, 0)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	reader := bufio.NewReader(segFile)
+
+	for currentOffset < upperOffset {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			log.Fatalln(err)
+		}
+		log.Println("line is", line)
+		kvpair := strings.Split(line, " ")
+		key, val := kvpair[0], kvpair[1]
+		if key == needle {
+			return val, nil
+		}
+
+		currentOffset += int64(len(line))
+	}
+	return "", nil
 }
 
 func (nob *Nob) mergeCompact() {
@@ -175,7 +242,7 @@ func (nob *Nob) getOrderedSegFiles(pattern string, asc bool) []string {
 		if asc {
 			return f1no < f2no
 		} else {
-			return f2no < f2no
+			return f2no < f1no
 		}
 	})
 	return res
@@ -343,6 +410,30 @@ func getOldIndexes(dir string) []os.DirEntry {
 	return res
 }
 
+// returns an array of anchors sorted by key asc
+func loadSparseIndex(f *os.File) []*Anchor {
+	res := []*Anchor{}
+	sc := bufio.NewScanner(f)
+
+	for sc.Scan() {
+		line := sc.Text()
+		kvpair := strings.Split(line, " ")
+		key, offsetString := kvpair[0], kvpair[1]
+		offset, err := strconv.ParseInt(offsetString, 10, 64)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		anchor := &Anchor{
+			key:    key,
+			offset: offset,
+		}
+		res = append(res, anchor)
+	}
+
+	return res
+}
+
+// loadIndexFrom(file) loads an index from disk into memory
 func loadIndexFrom(f *os.File) map[string]int64 {
 	res := map[string]int64{}
 	_, err := f.Seek(0, 0)
